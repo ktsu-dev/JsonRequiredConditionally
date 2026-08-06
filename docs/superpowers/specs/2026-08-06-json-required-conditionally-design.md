@@ -40,15 +40,26 @@ It does not go in `ktsu.Extensions`. Extensions is a dependency-free library of 
 consumed broadly across the ecosystem; pulling `System.Text.Json` into it would affect every consumer
 for a feature most of them do not use.
 
-Target frameworks mirror Extensions:
+Target frameworks:
 
 ```
-net10.0;net9.0;net8.0;net7.0;net6.0;net5.0;netstandard2.0;netstandard2.1
+net10.0;net9.0;net8.0;net7.0;netstandard2.0;netstandard2.1
 ```
 
-`System.Text.Json` ships in-box from `net5.0` onward, so the `PackageReference` is conditional on
-`netstandard2.0;netstandard2.1` only. `Polyfill` is referenced per ktsu convention, and `Ensure.NotNull`
-is used for parameter validation.
+This is Extensions' list minus `net5.0` and `net6.0`. Those were dropped deliberately: the graph walk
+uses `JsonSerializerOptions.GetTypeInfo` to obtain STJ's own property model, an API introduced in
+System.Text.Json 7.0. netstandard2.0/2.1 reach it through the package reference, but `net5.0` and
+`net6.0` resolve System.Text.Json from their shared framework, where it predates the API.
+
+Referencing a newer System.Text.Json on those targets is not a fix — it replaces a framework-serviced
+assembly with a downlevel asset and drags a transitive closure into every consumer. Both frameworks
+are long out of support (`net5.0` since May 2022, `net6.0` since November 2024), so dropping them is
+cheaper and more honest than either that or maintaining two member-model code paths under conditional
+compilation.
+
+`System.Text.Json` is therefore referenced for `netstandard2.0;netstandard2.1` only; every remaining
+`net*` target has a new enough in-box copy. `Polyfill` is referenced per ktsu convention, and
+`Ensure.NotNull` is used for parameter validation.
 
 ## Public surface
 
@@ -159,12 +170,23 @@ nullable. Covered by a test so the behavior is pinned.
 
 ### Type selection
 
-`CanConvert(Type)` returns `true` only for object-like types (not primitives, enums, strings,
-collections, or dictionaries) carrying at least one member decorated with the attribute. The result is
-cached in a `ConcurrentDictionary<Type, bool>`.
+`CanConvert(Type)` returns `true` for object-like types (not primitives, enums, strings, collections,
+or dictionaries) that **reach** a decorated member — either carrying one directly, or containing a
+type that does, transitively through the member graph.
 
-Types that do not opt in never enter the converter and keep STJ's normal fast path, so the buffering
-cost is confined to types that actually use the feature.
+Eligibility is transitive rather than direct so that violation paths are rooted at the outermost
+container. A directly-decorated-only rule would leave an undecorated `CollectionConfig` unclaimed, its
+elements claimed independently, and their violations reported as a bare `Tuning` with no container
+context. The cost is that any type reaching a decorated type is buffered and walked, so the buffering
+is *not* confined to types that opted in — a deliberate trade for complete diagnostics.
+
+The traversal cuts on ancestors to terminate on cyclic type graphs, which makes memoization
+subtle: a `true` result is always cacheable, but a `false` result is only cacheable when the traversal
+completed **without** hitting a cycle cut. A cycle-truncated `false` is not an answer and must never
+be cached. Without memoization the traversal enumerates every simple path and cost becomes factorial —
+measured at 13 seconds for ten mutually-referencing types, and unbounded beyond that.
+
+Types that reach nothing decorated never enter the converter and keep STJ's normal fast path.
 
 ### Read
 
@@ -205,16 +227,28 @@ no metadata cache and would be severely slow to rebuild per deserialization.
 
 The walk pairs each JSON element with the object STJ materialized from it:
 
-- **Objects** recurse member by member, mapping CLR members to JSON properties by resolved JSON name.
-  Members carrying `[JsonIgnore]` are skipped, and members are de-duplicated by resolved JSON name so
-  a `new`-hidden base member cannot cause the same element to be descended twice.
+- **Objects** recurse member by member using `plainOptions.GetTypeInfo(type).Properties` — STJ's own
+  property model — rather than a reflection approximation of it.
 - **Arrays** zip the JSON items against the materialized sequence in order.
-- **Dictionaries** match JSON property names against `entry.Key.ToString()`, so non-string-keyed
-  dictionaries descend correctly and no key cast is attempted.
+- **Dictionaries** match JSON property names against the invariant string form of each key, so
+  non-string-keyed dictionaries descend correctly and no key cast is attempted.
 - **Scalars** terminate the descent.
 
-Indexed properties are never read — `PropertyInfo.GetValue` throws on them, and they are reachable in
-ordinary input because STJ materializes `object`-typed members as `JsonElement`.
+Taking the member model from `JsonTypeInfo` rather than from reflection is what makes the walk
+trustworthy. It is the difference between mirroring STJ's inclusion rules and guessing at them, and
+every rule guessed wrong is either a silently unvalidated member or a false positive on a member STJ
+never populated. `[JsonIgnore]`, `IncludeFields`, `[JsonInclude]` on non-public members, get-only
+properties, member hiding and indexed properties are all already resolved correctly in `Properties`,
+so none of them need special handling here.
+
+The model must come from the factory-free options. STJ leaves `Properties` empty for any type that has
+a converter, so asking the *user's* options for a claimed type's metadata would return nothing.
+
+### Known limitation
+
+A type carrying a user's own custom `JsonConverter` has no `Properties`, so the walk cannot descend
+through it. Decorated types reachable only behind such a converter are not validated. This is the
+honest boundary of the design: the walk can only follow structure STJ exposes as a property model.
 
 ### Name resolution
 
