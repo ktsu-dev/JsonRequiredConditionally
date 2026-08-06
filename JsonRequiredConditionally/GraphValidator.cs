@@ -68,7 +68,11 @@ internal static class GraphValidator
 		{
 			HashSet<string> present = PresenceScanner.ScanPropertyNames(element, comparer);
 
-			foreach (RequirementRule rule in RequirementRuleCompiler.GetRules(type, userOptions))
+			// plainOptions, not userOptions: System.Text.Json leaves JsonTypeInfo.Properties empty
+			// for a type carrying its own converter, and a claimed type's JsonTypeInfo under the
+			// user's own options is exactly that -- this library's converter. plainOptions is
+			// factory-free, so GetRules (via Compile) sees the real member model underneath.
+			foreach (RequirementRule rule in RequirementRuleCompiler.GetRules(type, plainOptions))
 			{
 				if (!present.Contains(rule.JsonName) && rule.IsRequiredFor(instance))
 				{
@@ -90,15 +94,17 @@ internal static class GraphValidator
 
 		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
-			// A member System.Text.Json could never have populated during deserialization (get-only
-			// with no setter, or otherwise not settable) must not be validated against the JSON
-			// either: its current value is whatever its initializer set, unrelated to this payload.
-			if (property.Get is null || property.Set is null)
+			// A member System.Text.Json could never have populated during deserialization must not
+			// be validated against the JSON either: its current value is whatever its initializer
+			// set, unrelated to this payload.
+			if (!RequirementRuleCompiler.IsPopulatedByDeserialization(property))
 			{
 				continue;
 			}
 
-			object? value = property.Get(instance);
+			// IsPopulatedByDeserialization already confirmed Get is non-null; the compiler cannot
+			// see that across the method call.
+			object? value = property.Get!(instance);
 
 			if (value is null)
 			{

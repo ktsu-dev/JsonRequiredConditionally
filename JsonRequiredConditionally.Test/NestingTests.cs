@@ -214,4 +214,42 @@ public class NestingTests
 
 		CollectionAssert.AreEquivalent(new List<string> { "Payload.Tuning" }, exception.MissingProperties.ToList());
 	}
+
+	[TestMethod]
+	public void ConstructorBoundPropertyIsValidated()
+	{
+		// Child is populated via CtorHolder's constructor, not a setter (Set == null on its
+		// JsonPropertyInfo). System.Text.Json genuinely builds it from the "Child" JSON, so its
+		// Tuning requirement is real and must be caught, not silently skipped.
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CtorHolder>(
+				"""{"Kind":"Basic","Child":{"Kind":"Advanced"}}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void ConstructorBoundPropertyAsOnlyPathToDecoratedTypeKeepsPathPrefix()
+	{
+		// CtorOnlyPathHolder has no directly-decorated member of its own; Child (constructor-bound)
+		// is its only route to a decorated type. If constructor-bound properties were excluded from
+		// eligibility's reachable-member enumeration, this container would never be claimed at all,
+		// and the violation -- if caught independently by some other means -- would lose its path
+		// prefix. It must be claimed, walked, and the prefix must survive.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CtorOnlyPathHolder>(
+				"""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		CollectionAssert.AreEquivalent(new List<string> { "Child.Tuning" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void InternalJsonIncludedDecoratedMemberIsClaimedAndValidated()
+	{
+		// InternalDecoratedMemberConfig's only decorated member is internal, made visible to
+		// System.Text.Json via [JsonInclude]. Rule compilation and eligibility must both see it via
+		// the same JsonTypeInfo-based member model the walk uses, not raw Public|Instance
+		// reflection, or this type would never be claimed and would deserialize with no validation.
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(
+				"""{"Kind":"Advanced"}""", CreateOptions()));
+	}
 }

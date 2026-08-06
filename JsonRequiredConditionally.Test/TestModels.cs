@@ -246,3 +246,37 @@ public sealed class HidingObjectConfig : HidingBaseObjectConfig
 {
 	public new SimpleConfig Payload { get; set; } = new();
 }
+
+/// <summary>
+/// A get-only property bound to a deserialization constructor parameter -- unlike
+/// <see cref="ReadOnlyPropertyConfig"/>'s initializer-only property, System.Text.Json genuinely
+/// populates <see cref="Child"/> from the JSON payload via the constructor.
+/// </summary>
+public sealed class CtorHolder(SimpleConfig child)
+{
+	public SimpleConfig Child { get; } = child;
+
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>
+/// A constructor-bound property that is the *only* path from this type to a decorated type --
+/// proving eligibility reaches through it too, not just descent.
+/// </summary>
+public sealed class CtorOnlyPathHolder(SimpleConfig child)
+{
+	public SimpleConfig Child { get; } = child;
+}
+
+/// <summary>A type whose only decorated member is non-public, made visible to System.Text.Json via <c>[JsonInclude]</c>.</summary>
+public sealed class InternalDecoratedMemberConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonInclude]
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	internal string? Tuning { get; set; }
+}

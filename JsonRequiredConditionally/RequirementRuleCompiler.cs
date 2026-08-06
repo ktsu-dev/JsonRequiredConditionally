@@ -11,7 +11,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
@@ -19,7 +18,6 @@ using System.Text.Json.Serialization.Metadata;
 /// </summary>
 internal static class RequirementRuleCompiler
 {
-	private const BindingFlags MemberFlags = BindingFlags.Public | BindingFlags.Instance;
 	private const BindingFlags SiblingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
 	private static readonly ConcurrentDictionary<Type, bool> EligibilityCache = new();
@@ -49,8 +47,7 @@ internal static class RequirementRuleCompiler
 	/// decorated descendants get independently re-resolved by System.Text.Json using the caller's
 	/// original options instead of being reached by this type's own graph walk — each losing all
 	/// path context above itself.
-	/// </remarks>
-	/// <remarks>
+	/// <para>
 	/// <see cref="System.Text.Json.Serialization.JsonConverterFactory"/>'s <c>CanConvert</c> receives
 	/// only a <see cref="Type"/>, never the caller's <see cref="JsonSerializerOptions"/>, so this
 	/// reachability check cannot honour caller-specific settings such as <c>IncludeFields</c> or a
@@ -58,6 +55,7 @@ internal static class RequirementRuleCompiler
 	/// reflection-based, default-configured instance -- as the best available approximation of
 	/// "what would System.Text.Json actually walk into". This is an inherent limitation of the
 	/// claiming API, not something any implementation strategy here could fully avoid.
+	/// </para>
 	/// </remarks>
 	internal static bool HasRules(Type type)
 	{
@@ -154,15 +152,32 @@ internal static class RequirementRuleCompiler
 	/// Compiles the requirement rules for a type against a specific set of serializer options.
 	/// </summary>
 	/// <param name="type">The type to compile rules for.</param>
-	/// <param name="options">The options whose naming policy resolves JSON names.</param>
+	/// <param name="options">
+	/// The options to resolve the type's member model through. Must be factory-free (or otherwise
+	/// not carrying this library's converter for <paramref name="type"/>) -- System.Text.Json leaves
+	/// <see cref="JsonTypeInfo.Properties"/> empty for a type with its own converter, which would
+	/// make every claimed type appear to have no members at all.
+	/// </param>
 	/// <returns>One rule per decorated member.</returns>
 	/// <exception cref="InvalidOperationException">A sibling name does not resolve to a readable member.</exception>
 	internal static RequirementRule[] Compile(Type type, JsonSerializerOptions options)
 	{
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(options, type);
+
+		if (typeInfo is null)
+		{
+			return [];
+		}
+
 		List<RequirementRule> rules = [];
 
-		foreach (MemberInfo member in EnumerateCandidateMembers(type))
+		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
+			if (property.AttributeProvider is not MemberInfo member)
+			{
+				continue;
+			}
+
 			JsonRequiredIfSiblingIsAttribute[] attributes =
 				[.. member.GetCustomAttributes<JsonRequiredIfSiblingIsAttribute>(inherit: true)];
 
@@ -173,7 +188,10 @@ internal static class RequirementRuleCompiler
 
 			SiblingCondition[] conditions = BuildConditions(type, attributes);
 
-			rules.Add(new RequirementRule(ResolveJsonName(member, options), member.Name, conditions));
+			// property.Name is System.Text.Json's own resolved JSON name: an explicit
+			// [JsonPropertyName] already wins over the naming policy, so there is no need to
+			// re-derive that here the way ResolveJsonName used to.
+			rules.Add(new RequirementRule(property.Name, member.Name, conditions));
 		}
 
 		return [.. rules];
@@ -207,41 +225,6 @@ internal static class RequirementRuleCompiler
 		}
 
 		return [.. conditions];
-	}
-
-	/// <summary>
-	/// Enumerates the public instance properties and fields of a type that are candidates for
-	/// carrying a <see cref="JsonRequiredIfSiblingIsAttribute"/> or being a sibling.
-	/// </summary>
-	/// <param name="type">The type to enumerate.</param>
-	/// <returns>The type's public instance properties, then its public instance fields.</returns>
-	internal static IEnumerable<MemberInfo> EnumerateCandidateMembers(Type type)
-	{
-		foreach (PropertyInfo property in type.GetProperties(MemberFlags))
-		{
-			yield return property;
-		}
-
-		foreach (FieldInfo field in type.GetFields(MemberFlags))
-		{
-			yield return field;
-		}
-	}
-
-	/// <summary>
-	/// Resolves the JSON name a member serializes under, honouring an explicit
-	/// <see cref="JsonPropertyNameAttribute"/> before falling back to the options' naming policy.
-	/// </summary>
-	/// <param name="member">The member to resolve a name for.</param>
-	/// <param name="options">The options whose naming policy applies absent an explicit name.</param>
-	/// <returns>The JSON name for the member.</returns>
-	internal static string ResolveJsonName(MemberInfo member, JsonSerializerOptions options)
-	{
-		JsonPropertyNameAttribute? nameAttribute = member.GetCustomAttribute<JsonPropertyNameAttribute>(inherit: true);
-
-		return nameAttribute is not null
-			? nameAttribute.Name
-			: options.PropertyNamingPolicy?.ConvertName(member.Name) ?? member.Name;
 	}
 
 	private static Func<object, object?> CreateAccessor(Type type, string siblingName)
@@ -288,11 +271,29 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
+	/// <summary>
+	/// Determines whether a type has a member directly decorated with
+	/// <see cref="JsonRequiredIfSiblingIsAttribute"/>, using System.Text.Json's own contract model
+	/// (via <see cref="StructuralProbeOptions"/>) to find the member set rather than re-deriving it
+	/// from raw reflection -- otherwise a decorated member System.Text.Json would not itself
+	/// populate (e.g. a non-public property without <c>[JsonInclude]</c>) would be found here but
+	/// never actually validated, or vice versa.
+	/// </summary>
+	/// <param name="type">The type to check.</param>
+	/// <returns>True when a member System.Text.Json would populate carries the attribute.</returns>
 	private static bool HasDirectlyDecoratedMember(Type type)
 	{
-		foreach (MemberInfo member in EnumerateCandidateMembers(type))
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(StructuralProbeOptions, type);
+
+		if (typeInfo is null)
 		{
-			if (member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true))
+			return false;
+		}
+
+		foreach (JsonPropertyInfo property in typeInfo.Properties)
+		{
+			if (property.AttributeProvider is MemberInfo member &&
+				member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true))
 			{
 				return true;
 			}
@@ -327,10 +328,7 @@ internal static class RequirementRuleCompiler
 
 		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
-			// A member System.Text.Json could never populate during deserialization (get-only with
-			// no setter, or otherwise not settable) cannot carry a reachable requirement either:
-			// nothing will ever validate against JSON such a member was never built from.
-			if (property.Get is null || property.Set is null)
+			if (!IsPopulatedByDeserialization(property))
 			{
 				continue;
 			}
@@ -378,6 +376,9 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
+	[SuppressMessage("Style", "IDE0028:Collection initialization can be simplified", Justification = "A collection expression does not compile for ConditionalWeakTable on netstandard2.0.")]
+	private static readonly ConditionalWeakTable<JsonSerializerOptions, JsonSerializerOptions> ResolverEnsuredOptionsCache = new();
+
 	/// <summary>
 	/// Gets the System.Text.Json contract metadata for a type under a given set of options, or null
 	/// if the resolver cannot supply one.
@@ -388,16 +389,26 @@ internal static class RequirementRuleCompiler
 	/// <remarks>
 	/// Observed empirically: an options instance whose resolver has never been consulted throws
 	/// <see cref="NotSupportedException"/> here, not <see cref="InvalidOperationException"/> as
-	/// might be assumed from the exception's usual role elsewhere in System.Text.Json. Both callers
-	/// of this method use an options instance with <see cref="JsonSerializerOptions.TypeInfoResolver"/>
-	/// explicitly set, which avoids that specific case, but both exceptions are caught here as a
-	/// defensive guard against any type the resolver genuinely cannot describe.
+	/// might be assumed from the exception's usual role elsewhere in System.Text.Json. Rather than
+	/// require every caller to pre-configure a resolver -- <c>RequirementRuleCompilerTests</c>
+	/// legitimately calls <see cref="Compile"/> with a bare, never-configured
+	/// <see cref="JsonSerializerOptions"/>, and mutating a caller's own options object in place is
+	/// unsafe (the <see cref="JsonSerializerOptions.TypeInfoResolver"/> setter throws if the
+	/// instance has already been locked by prior use elsewhere) -- this method transparently
+	/// substitutes a cached, resolver-equipped clone for any options instance that does not already
+	/// have one, preserving every other setting (naming policy, <c>IncludeFields</c>, etc.) from the
+	/// original. Both exceptions are still caught defensively for any type shape the resolver
+	/// genuinely cannot describe even once configured.
 	/// </remarks>
 	internal static JsonTypeInfo? TryGetTypeInfo(JsonSerializerOptions options, Type type)
 	{
+		JsonSerializerOptions effective = options.TypeInfoResolver is not null
+			? options
+			: ResolverEnsuredOptionsCache.GetValue(options, static o => new JsonSerializerOptions(o) { TypeInfoResolver = new DefaultJsonTypeInfoResolver() });
+
 		try
 		{
-			return options.GetTypeInfo(type);
+			return effective.GetTypeInfo(type);
 		}
 		catch (InvalidOperationException)
 		{
@@ -407,5 +418,57 @@ internal static class RequirementRuleCompiler
 		{
 			return null;
 		}
+	}
+
+	/// <summary>
+	/// Determines whether System.Text.Json would actually populate a member during deserialization
+	/// -- i.e. whether validating it against the incoming JSON means anything at all.
+	/// </summary>
+	/// <param name="property">The property to check.</param>
+	/// <returns>True when the property is directly settable, or bound to a deserialization constructor parameter.</returns>
+	/// <remarks>
+	/// A property with a setter is always populated (this covers records and <c>init</c>-only
+	/// properties too, both of which report a non-null <see cref="JsonPropertyInfo.Set"/>). A
+	/// get-only property is populated only when a constructor parameter binds to it, detected here
+	/// by an ordinal-insensitive name match against the declaring type's constructor parameters.
+	/// This is an approximation of System.Text.Json's own constructor-parameter binding, not a
+	/// faithful reproduction of it -- the precise answer, <c>JsonPropertyInfo.AssociatedParameter</c>,
+	/// is only available on net9.0+, and this library also targets net7.0, net8.0, netstandard2.0
+	/// and netstandard2.1.
+	/// </remarks>
+	internal static bool IsPopulatedByDeserialization(JsonPropertyInfo property)
+	{
+		if (property.Get is null)
+		{
+			return false;
+		}
+
+		if (property.Set is not null)
+		{
+			return true;
+		}
+
+		return IsConstructorBound(property);
+	}
+
+	private static bool IsConstructorBound(JsonPropertyInfo property)
+	{
+		if (property.AttributeProvider is not MemberInfo member || member.DeclaringType is null)
+		{
+			return false;
+		}
+
+		foreach (ConstructorInfo constructor in member.DeclaringType.GetConstructors())
+		{
+			foreach (ParameterInfo parameter in constructor.GetParameters())
+			{
+				if (string.Equals(parameter.Name, member.Name, StringComparison.OrdinalIgnoreCase))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }
