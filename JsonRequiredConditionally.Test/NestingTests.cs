@@ -34,17 +34,31 @@ public class NestingTests
 	[TestMethod]
 	public void ListElementsAreValidated()
 	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}],"Lookup":{}}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Items[1].Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
 	public void DictionaryValuesAreValidated()
 	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[],"Lookup":{"a":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Lookup.a.Tuning" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void IntKeyedDictionaryValuesAreValidated()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<IntKeyedDictionaryConfig>(
+				"""{"Items":{"1":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Items.1.Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -100,10 +114,12 @@ public class NestingTests
 	[TestMethod]
 	public void SelfReferenceThroughCollectionIsValidated()
 	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<BranchNode>(
 				"""{"Kind":"Basic","Children":[{"Kind":"Basic","Children":[]},{"Kind":"Advanced","Children":[]}]}""",
 				CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Children[1].Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -113,6 +129,39 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<TreeNode>(
 				"""{"Kind":"Advanced","Child":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		Assert.HasCount(2, exception.MissingProperties);
+		CollectionAssert.AreEqual(new List<string> { "Tuning", "Child.Tuning" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void ObjectTypedMemberWithIndexerPropertyDoesNotCrash()
+	{
+		PayloadConfig? config = JsonSerializer.Deserialize<PayloadConfig>(
+			"""{"Kind":"Basic","Payload":{"a":1}}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+	}
+
+	[TestMethod]
+	public void JsonIgnoredMemberIsNotDescendedEvenWhenNameCollidesWithRealJsonProperty()
+	{
+		IgnoredMemberConfig? config = JsonSerializer.Deserialize<IgnoredMemberConfig>(
+			"""{"Kind":"Basic","Hidden":{"Kind":"Basic"}}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.AreEqual(Kind.Advanced, config.Hidden.Kind);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveOptionsValidateNestedObjects()
+	{
+		JsonSerializerOptions options = new()
+		{
+			PropertyNameCaseInsensitive = true,
+			Converters = { new JsonStringEnumConverter(), new JsonRequiredConditionallyConverterFactory() },
+		};
+
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<OuterConfig>(
+				"""{"label":"x","child":{"kind":"Advanced"}}""", options));
 	}
 }

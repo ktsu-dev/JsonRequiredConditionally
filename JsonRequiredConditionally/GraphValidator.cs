@@ -7,6 +7,7 @@ namespace ktsu.JsonRequiredConditionally;
 using System.Collections;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 /// <summary>
 /// Walks a materialized object graph alongside the JSON it came from, applying requirement rules at
@@ -33,7 +34,7 @@ internal static class GraphValidator
 
 		List<string> missing = [];
 
-		Walk(element, instance, options, comparer, missing);
+		Walk(element, instance, options, comparer, string.Empty, missing);
 
 		if (missing.Count > 0)
 		{
@@ -46,6 +47,7 @@ internal static class GraphValidator
 		object instance,
 		JsonSerializerOptions options,
 		StringComparer comparer,
+		string path,
 		List<string> missing)
 	{
 		if (element.ValueKind != JsonValueKind.Object)
@@ -63,46 +65,94 @@ internal static class GraphValidator
 			{
 				if (!present.Contains(rule.JsonName) && rule.IsRequiredFor(instance))
 				{
-					missing.Add(rule.JsonName);
+					missing.Add(Combine(path, rule.JsonName));
 				}
 			}
 		}
 
-		foreach (MemberInfo member in RequirementRuleCompiler.EnumerateCandidateMembers(type))
+		foreach (KeyValuePair<string, MemberInfo> candidate in SelectDescendantMembers(type, options, comparer))
 		{
-			object? value = ReadMember(member, instance);
+			object? value = ReadMember(candidate.Value, instance);
 
 			if (value is null)
 			{
 				continue;
 			}
 
-			if (TryGetProperty(element, RequirementRuleCompiler.ResolveJsonName(member, options), comparer, out JsonElement child))
+			if (TryGetProperty(element, candidate.Key, comparer, options.PropertyNameCaseInsensitive, out JsonElement child))
 			{
-				Descend(child, value, options, comparer, missing);
+				Descend(child, value, options, comparer, Combine(path, candidate.Key), missing);
 			}
 		}
 	}
+
+	/// <summary>
+	/// Selects, for each distinct JSON name, the single most-derived candidate member that carries
+	/// it, skipping members STJ itself would never populate.
+	/// </summary>
+	/// <param name="type">The type to enumerate members of.</param>
+	/// <param name="options">The options whose naming policy resolves JSON names.</param>
+	/// <param name="comparer">The comparer matching the serializer's case sensitivity.</param>
+	/// <returns>One member per distinct JSON name.</returns>
+	private static Dictionary<string, MemberInfo> SelectDescendantMembers(
+		Type type,
+		JsonSerializerOptions options,
+		StringComparer comparer)
+	{
+		Dictionary<string, MemberInfo> selected = new(comparer);
+
+		foreach (MemberInfo member in RequirementRuleCompiler.EnumerateCandidateMembers(type))
+		{
+			if (member.IsDefined(typeof(JsonIgnoreAttribute), inherit: true))
+			{
+				continue;
+			}
+
+			string jsonName = RequirementRuleCompiler.ResolveJsonName(member, options);
+
+			if (selected.TryGetValue(jsonName, out MemberInfo? existing) && !IsMoreDerived(member, existing))
+			{
+				continue;
+			}
+
+			selected[jsonName] = member;
+		}
+
+		return selected;
+	}
+
+	/// <summary>
+	/// Determines whether a candidate member hides an already-selected member declared on a base type.
+	/// </summary>
+	/// <param name="candidate">The member under consideration.</param>
+	/// <param name="existing">The previously selected member sharing the same JSON name.</param>
+	/// <returns>True when <paramref name="candidate"/> is declared on a type more derived than <paramref name="existing"/>.</returns>
+	private static bool IsMoreDerived(MemberInfo candidate, MemberInfo existing) =>
+		existing.DeclaringType is not null &&
+		candidate.DeclaringType is not null &&
+		existing.DeclaringType != candidate.DeclaringType &&
+		existing.DeclaringType.IsAssignableFrom(candidate.DeclaringType);
 
 	private static void Descend(
 		JsonElement element,
 		object value,
 		JsonSerializerOptions options,
 		StringComparer comparer,
+		string path,
 		List<string> missing)
 	{
 		switch (element.ValueKind)
 		{
 			case JsonValueKind.Object when value is IDictionary dictionary:
-				DescendDictionary(element, dictionary, options, comparer, missing);
+				DescendDictionary(element, dictionary, options, comparer, path, missing);
 				break;
 
 			case JsonValueKind.Object:
-				Walk(element, value, options, comparer, missing);
+				Walk(element, value, options, comparer, path, missing);
 				break;
 
 			case JsonValueKind.Array when value is IEnumerable sequence:
-				DescendSequence(element, sequence, options, comparer, missing);
+				DescendSequence(element, sequence, options, comparer, path, missing);
 				break;
 
 			default:
@@ -115,15 +165,27 @@ internal static class GraphValidator
 		IDictionary dictionary,
 		JsonSerializerOptions options,
 		StringComparer comparer,
+		string path,
 		List<string> missing)
 	{
-		foreach (JsonProperty property in element.EnumerateObject())
-		{
-			object? item = dictionary[property.Name];
+		bool caseInsensitive = options.PropertyNameCaseInsensitive;
 
-			if (item is not null)
+		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
+		// indexer returns null for a key of the wrong CLR type (e.g. int) instead of matching the
+		// string key parsed from JSON, and throws outright for some read-only implementations
+		// (e.g. ImmutableDictionary). DictionaryEntry enumeration works uniformly for both.
+		foreach (DictionaryEntry entry in dictionary)
+		{
+			string? key = entry.Key?.ToString();
+
+			if (key is null || entry.Value is null)
 			{
-				Descend(property.Value, item, options, comparer, missing);
+				continue;
+			}
+
+			if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
+			{
+				Descend(child, entry.Value, options, comparer, Combine(path, key), missing);
 			}
 		}
 	}
@@ -133,30 +195,44 @@ internal static class GraphValidator
 		IEnumerable sequence,
 		JsonSerializerOptions options,
 		StringComparer comparer,
+		string path,
 		List<string> missing)
 	{
-		int length = element.GetArrayLength();
-		int index = 0;
+		// Zip the JSON array's own enumerator against the sequence's, rather than indexing the
+		// element by position: JsonElement's array indexer falls back to a sequential scan for
+		// non-simple elements, making per-index access O(n) and the whole loop O(n^2).
+		IEnumerator items = sequence.GetEnumerator();
 
-		foreach (object? item in sequence)
+		try
 		{
-			if (index >= length)
-			{
-				break;
-			}
+			int index = 0;
 
-			if (item is not null)
+			foreach (JsonElement itemElement in element.EnumerateArray())
 			{
-				Descend(element[index], item, options, comparer, missing);
-			}
+				if (!items.MoveNext())
+				{
+					break;
+				}
 
-			index++;
+				object? item = items.Current;
+
+				if (item is not null)
+				{
+					Descend(itemElement, item, options, comparer, $"{path}[{index}]", missing);
+				}
+
+				index++;
+			}
+		}
+		finally
+		{
+			(items as IDisposable)?.Dispose();
 		}
 	}
 
 	private static object? ReadMember(MemberInfo member, object instance) => member switch
 	{
-		PropertyInfo property when property.CanRead => property.GetValue(instance),
+		PropertyInfo property when property.CanRead && property.GetIndexParameters().Length == 0 => property.GetValue(instance),
 		FieldInfo field => field.GetValue(instance),
 		_ => null,
 	};
@@ -165,6 +241,7 @@ internal static class GraphValidator
 		JsonElement element,
 		string name,
 		StringComparer comparer,
+		bool caseInsensitive,
 		out JsonElement value)
 	{
 		if (element.TryGetProperty(name, out value))
@@ -172,7 +249,7 @@ internal static class GraphValidator
 			return true;
 		}
 
-		if (!ReferenceEquals(comparer, StringComparer.OrdinalIgnoreCase))
+		if (!caseInsensitive)
 		{
 			value = default;
 			return false;
@@ -190,4 +267,7 @@ internal static class GraphValidator
 		value = default;
 		return false;
 	}
+
+	private static string Combine(string prefix, string name) =>
+		string.IsNullOrEmpty(prefix) ? name : prefix + "." + name;
 }

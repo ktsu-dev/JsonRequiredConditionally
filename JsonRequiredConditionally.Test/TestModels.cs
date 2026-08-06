@@ -161,3 +161,30 @@ public sealed class BranchNode
 	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture mirrors the shape a consumer would write.")]
 	public List<BranchNode> Children { get; set; } = [];
 }
+
+/// <summary>Holds an object-typed member that materializes as a boxed <see cref="System.Text.Json.JsonElement"/>.</summary>
+public sealed class PayloadConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public object? Payload { get; set; }
+}
+
+/// <summary>A member excluded from serialization whose name collides with an unrelated JSON property.</summary>
+public sealed class IgnoredMemberConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonIgnore]
+	public SimpleConfig Hidden { get; set; } = new() { Kind = Kind.Advanced };
+}
+
+/// <summary>Holds a decorated child behind a non-string-keyed dictionary.</summary>
+public sealed class IntKeyedDictionaryConfig
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Dictionary<int, SimpleConfig> Items { get; set; } = [];
+}

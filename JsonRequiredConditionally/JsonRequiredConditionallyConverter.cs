@@ -40,7 +40,7 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 		using JsonDocument document = JsonDocument.ParseValue(ref reader);
 
-		T? value = document.RootElement.Deserialize<T>(plainOptions);
+		T? value = JsonSerializer.Deserialize<T>(document.RootElement.GetRawText(), plainOptions);
 
 		if (value is not null)
 		{

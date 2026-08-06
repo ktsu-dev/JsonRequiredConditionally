@@ -27,11 +27,19 @@ internal static class RequirementRuleCompiler
 	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, RequirementRule[]>> RuleCache = new();
 
 	/// <summary>
-	/// Determines whether a type carries at least one decorated member and is shaped like an object.
+	/// Determines whether a type carries at least one decorated member, or transitively reaches a
+	/// type that does through its own members' object graph, and is itself shaped like an object.
 	/// </summary>
 	/// <param name="type">The candidate type.</param>
 	/// <returns>True when the type should be routed through the converter.</returns>
-	internal static bool HasRules(Type type) => EligibilityCache.GetOrAdd(type, IsEligible);
+	/// <remarks>
+	/// Transitivity matters: a container with no decorated member of its own (e.g. one holding a
+	/// <c>List&lt;T&gt;</c> of a decorated <c>T</c>) must still be claimed at its own top, or its
+	/// decorated descendants get independently re-resolved by System.Text.Json using the caller's
+	/// original options instead of being reached by this type's own graph walk — each losing all
+	/// path context above itself.
+	/// </remarks>
+	internal static bool HasRules(Type type) => EligibilityCache.GetOrAdd(type, static t => IsEligible(t, []));
 
 	/// <summary>
 	/// Compiles the requirement rules for a type against a specific set of serializer options.
@@ -171,18 +179,64 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
-	private static bool IsEligible(Type type)
+	/// <summary>
+	/// Determines eligibility, following the reachable object graph to find a decorated member
+	/// anywhere beneath <paramref name="type"/>.
+	/// </summary>
+	/// <param name="type">The type under consideration.</param>
+	/// <param name="visiting">
+	/// The types currently on the call stack, guarding against infinite recursion through cyclic
+	/// type graphs (mutually- or self-referential types). A cycle back to an ancestor contributes
+	/// no eligibility on its own; if a decorated type is reachable, it is reachable through some
+	/// other, non-cyclic edge that this same traversal also visits.
+	/// </param>
+	/// <returns>True when <paramref name="type"/> should be routed through the converter.</returns>
+	private static bool IsEligible(Type type, HashSet<Type> visiting)
 	{
 		if (type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal))
 		{
 			return false;
 		}
 
+		// A collection type is never claimed for itself: System.Text.Json has its own converters for
+		// these, and our converter's contract is "a single materialized object", not a sequence or
+		// map. Reachability through a collection-typed member still applies -- see
+		// EnumerateReachableMemberTypes, which unwraps the element/value type before recursing here.
 		if (typeof(IEnumerable).IsAssignableFrom(type))
 		{
 			return false;
 		}
 
+		if (!visiting.Add(type))
+		{
+			return false;
+		}
+
+		try
+		{
+			if (HasDirectlyDecoratedMember(type))
+			{
+				return true;
+			}
+
+			foreach (Type reachable in EnumerateReachableMemberTypes(type))
+			{
+				if (IsEligible(reachable, visiting))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+		finally
+		{
+			visiting.Remove(type);
+		}
+	}
+
+	private static bool HasDirectlyDecoratedMember(Type type)
+	{
 		foreach (MemberInfo member in EnumerateCandidateMembers(type))
 		{
 			if (member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true))
@@ -192,5 +246,75 @@ internal static class RequirementRuleCompiler
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Enumerates the types reachable from a type's own candidate members, unwrapping collection
+	/// and dictionary members to their element or value type rather than the collection type itself.
+	/// </summary>
+	/// <param name="type">The type to enumerate reachable member types for.</param>
+	/// <returns>The type of each candidate member, or its element/value type when the member is a collection.</returns>
+	private static IEnumerable<Type> EnumerateReachableMemberTypes(Type type)
+	{
+		foreach (MemberInfo member in EnumerateCandidateMembers(type))
+		{
+			// A member System.Text.Json itself will never populate cannot carry a reachable
+			// requirement: nothing will ever validate against JSON that member was never built from.
+			if (member.IsDefined(typeof(JsonIgnoreAttribute), inherit: true))
+			{
+				continue;
+			}
+
+			Type? memberType = member switch
+			{
+				PropertyInfo property when property.GetIndexParameters().Length == 0 => property.PropertyType,
+				FieldInfo field => field.FieldType,
+				_ => null,
+			};
+
+			if (memberType is null)
+			{
+				continue;
+			}
+
+			if (memberType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(memberType))
+			{
+				foreach (Type elementType in EnumerateElementTypes(memberType))
+				{
+					yield return elementType;
+				}
+			}
+			else
+			{
+				yield return memberType;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Determines the element type of a sequence, or the value type of a dictionary, from its
+	/// generic collection interfaces.
+	/// </summary>
+	/// <param name="type">The collection type to inspect.</param>
+	/// <returns>Zero or one type: the dictionary value type if the collection is a dictionary, otherwise the sequence element type.</returns>
+	private static IEnumerable<Type> EnumerateElementTypes(Type type)
+	{
+		foreach (Type candidateInterface in type.GetInterfaces())
+		{
+			if (candidateInterface.IsGenericType && candidateInterface.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+			{
+				yield return candidateInterface.GetGenericArguments()[1];
+				yield break;
+			}
+		}
+
+		foreach (Type candidateInterface in type.GetInterfaces())
+		{
+			if (candidateInterface.IsGenericType && candidateInterface.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+			{
+				yield return candidateInterface.GetGenericArguments()[0];
+				yield break;
+			}
+		}
 	}
 }
