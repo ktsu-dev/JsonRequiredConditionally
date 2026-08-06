@@ -1956,6 +1956,7 @@ If a test here fails, the fix belongs in `RequirementRuleCompiler.ResolveJsonNam
 namespace ktsu.JsonRequiredConditionally.Tests;
 
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 [TestClass]
 public class NamingTests
@@ -1967,7 +1968,11 @@ public class NamingTests
 		{
 			PropertyNamingPolicy = policy,
 			PropertyNameCaseInsensitive = caseInsensitive,
-			Converters = { new JsonRequiredConditionallyConverterFactory() },
+			Converters =
+			{
+				new JsonStringEnumConverter(),
+				new JsonRequiredConditionallyConverterFactory(),
+			},
 		};
 
 	[TestMethod]
@@ -2115,12 +2120,20 @@ public sealed class NullSiblingConfig
 namespace ktsu.JsonRequiredConditionally.Tests;
 
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 [TestClass]
 public class SemanticsTests
 {
 	private static JsonSerializerOptions CreateOptions() =>
-		new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };
+		new()
+		{
+			Converters =
+			{
+				new JsonStringEnumConverter(),
+				new JsonRequiredConditionallyConverterFactory(),
+			},
+		};
 
 	[TestMethod]
 	public void RecordWithMissingRequiredPropertyThrows()
@@ -2324,7 +2337,7 @@ Mirror the structure of `C:\dev\ktsu-dev\Extensions\CLAUDE.md`: project overview
 - [ ] **Step 3: Verify the package builds for every target framework**
 
 Run: `dotnet build --configuration Release`
-Expected: no warnings, no errors, all eight target frameworks build.
+Expected: no warnings, no errors, all six target frameworks build (`net5.0` and `net6.0` were dropped during Task 6R — see the design spec).
 
 - [ ] **Step 4: Verify the package packs**
 
@@ -2349,7 +2362,7 @@ git commit -m "[patch] Add README and repo documentation"
 
 Before declaring the work complete, confirm each with actual command output:
 
-- [ ] `dotnet build --configuration Release` produces zero warnings across all eight target frameworks.
+- [ ] `dotnet build --configuration Release` produces zero warnings across all six target frameworks.
 - [ ] `dotnet test` passes with every test from Tasks 1-8 green.
 - [ ] `dotnet pack --configuration Release --output ./staging` produces a `.nupkg`.
 - [ ] The public API is exactly three types: `JsonRequiredIfSiblingIsAttribute`, `JsonRequiredConditionallyConverterFactory`, `JsonRequiredConditionallyException`.
