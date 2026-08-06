@@ -2366,20 +2366,42 @@ MIT
 
 Mirror the structure of `C:\dev\ktsu-dev\Extensions\CLAUDE.md`: project overview, build and test commands, source organization table, key patterns, build system, test structure, version management.
 
-- [ ] **Step 3: Verify the package builds for every target framework**
+- [ ] **Step 3: Install the ktsu build tool**
 
-Run: `dotnet build --configuration Release`
-Expected: no warnings, no errors, all six target frameworks build (`net5.0` and `net6.0` were dropped during Task 6R — see the design spec).
+Release verification uses `ktsu.KtsuBuild.Tool`, the same tool the CI workflow runs — not raw `dotnet build`/`pack`, and not the older PSBuild module.
 
-- [ ] **Step 4: Verify the package packs**
+```powershell
+dotnet tool install ktsu.KtsuBuild.Tool --tool-path "$env:TEMP\ktsubuild"
+```
 
-Run: `dotnet pack --configuration Release --output ./staging`
-Expected: `ktsu.JsonRequiredConditionally.<version>.nupkg` produced in `./staging`.
+Installing to a `--tool-path` rather than globally keeps it out of the machine's global tool set.
 
-- [ ] **Step 5: Run the full suite one final time**
+- [ ] **Step 4: Verify restore, build and test**
 
-Run: `dotnet test --configuration Release`
-Expected: PASS, all tests.
+**`--workspace` defaults to the current directory. Always pass it explicitly** — running this from the wrong directory would operate on a different repository.
+
+```powershell
+& "$env:TEMP\ktsubuild\ktsubuild" build `
+	--workspace "C:\dev\ktsu-dev\JsonRequiredConditionally" `
+	--configuration Release `
+	--verbose
+```
+
+Expected: restore, build and test all succeed — 0 warnings, 0 errors across all six target frameworks (`net5.0` and `net6.0` were dropped during Task 6R; see the design spec), and the full test suite passes.
+
+- [ ] **Step 5: Verify release readiness without publishing**
+
+```powershell
+& "$env:TEMP\ktsubuild\ktsubuild" release `
+	--workspace "C:\dev\ktsu-dev\JsonRequiredConditionally" `
+	--configuration Release `
+	--dry-run `
+	--verbose
+```
+
+Expected: the pack/publish/release steps are previewed and report no blocking problems.
+
+**`--dry-run` is mandatory here.** Without it, `release` genuinely packs, publishes and releases. Never run `ktsubuild release` without it locally, and never run `ktsubuild ci` locally at all — that is the full pipeline and will rewrite the generated metadata files and can tag and publish.
 
 - [ ] **Step 6: Commit**
 
@@ -2394,9 +2416,8 @@ git commit -m "[patch] Add README and repo documentation"
 
 Before declaring the work complete, confirm each with actual command output:
 
-- [ ] `dotnet build --configuration Release` produces zero warnings across all six target frameworks.
-- [ ] `dotnet test` passes with every test from Tasks 1-8 green.
-- [ ] `dotnet pack --configuration Release --output ./staging` produces a `.nupkg`.
+- [ ] `ktsubuild build --workspace <repo> --configuration Release` succeeds with zero warnings across all six target frameworks and a green test suite.
+- [ ] `ktsubuild release --workspace <repo> --configuration Release --dry-run` previews cleanly.
 - [ ] The public API is exactly three types: `JsonRequiredIfSiblingIsAttribute`, `JsonRequiredConditionallyConverterFactory`, `JsonRequiredConditionallyException`.
 - [ ] No `[SuppressMessage]` attributes were added without a written justification.
 - [ ] `VERSION.md`, `CHANGELOG.md`, and `LICENSE.md` were not hand-written.
