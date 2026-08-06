@@ -455,7 +455,7 @@ internal static class RequirementRuleCompiler
 
 		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
-			if (!IsPopulatedByDeserialization(property))
+			if (!IsPopulatedByDeserialization(typeInfo, property))
 			{
 				continue;
 			}
@@ -599,22 +599,33 @@ internal static class RequirementRuleCompiler
 	/// Determines whether System.Text.Json would actually populate a member during deserialization
 	/// -- i.e. whether validating it against the incoming JSON means anything at all.
 	/// </summary>
+	/// <param name="declaringTypeInfo">The contract of the type declaring the property.</param>
 	/// <param name="property">The property to check.</param>
-	/// <returns>True when the property is directly settable, or bound to a deserialization constructor parameter.</returns>
+	/// <returns>True when the property is directly settable, populated in place, or bound to a deserialization constructor parameter.</returns>
 	/// <remarks>
 	/// A property with a setter is always populated (this covers records and <c>init</c>-only
 	/// properties too, both of which report a non-null <see cref="JsonPropertyInfo.Set"/>). A
-	/// get-only property is populated only when a parameter of the constructor System.Text.Json
-	/// would actually select (see <see cref="SelectDeserializationConstructor"/>) binds to it,
-	/// detected here by an ordinal-insensitive name match against that one constructor's parameters
-	/// -- not every public constructor the type happens to declare, which would treat a get-only
-	/// property as populated merely because some unrelated convenience overload happens to have a
-	/// same-named parameter. This is an approximation of System.Text.Json's own
-	/// constructor-parameter binding, not a faithful reproduction of it -- the precise answer,
+	/// get-only property is populated when <c>JsonObjectCreationHandling.Populate</c> applies to it
+	/// -- System.Text.Json then fills the instance the getter already returns, so deserialization
+	/// does reach it -- or when a parameter of the constructor System.Text.Json would actually
+	/// select (see <see cref="SelectDeserializationConstructor"/>) binds to it, detected here by an
+	/// ordinal-insensitive name match against that one constructor's parameters -- not every public
+	/// constructor the type happens to declare, which would treat a get-only property as populated
+	/// merely because some unrelated convenience overload happens to have a same-named parameter.
+	/// This is an approximation of System.Text.Json's own constructor-parameter binding, not a
+	/// faithful reproduction of it -- the precise answer,
 	/// <c>JsonPropertyInfo.AssociatedParameter</c>, is only available on net9.0+, and this library
 	/// also targets net7.0, net8.0, netstandard2.0 and netstandard2.1.
+	/// <para>
+	/// The <c>Populate</c> case exists so the holder of such a property is <em>claimed</em>, which is
+	/// what routes it through <see cref="SerializerFeatureGuard.EnsureCanRead"/> and turns silent
+	/// data loss into a named error. Without it, a holder whose only decorated member sits behind a
+	/// populated get-only property was never claimed, the guard was never asked about it, and the
+	/// converter for the inner type returned a fresh instance that the holder had no setter to
+	/// accept -- discarding the payload entirely.
+	/// </para>
 	/// </remarks>
-	internal static bool IsPopulatedByDeserialization(JsonPropertyInfo property)
+	internal static bool IsPopulatedByDeserialization(JsonTypeInfo declaringTypeInfo, JsonPropertyInfo property)
 	{
 		if (property.Get is null)
 		{
@@ -626,7 +637,7 @@ internal static class RequirementRuleCompiler
 			return true;
 		}
 
-		return IsConstructorBound(property);
+		return SerializerFeatureGuard.PopulatesInPlace(declaringTypeInfo, property) || IsConstructorBound(property);
 	}
 
 	private static bool IsConstructorBound(JsonPropertyInfo property)
@@ -656,8 +667,8 @@ internal static class RequirementRuleCompiler
 
 	/// <summary>
 	/// Approximates System.Text.Json's own deserialization constructor selection: an explicit
-	/// <c>[JsonConstructor]</c> wins outright; a value type without one always uses its implicit
-	/// parameterless constructor; otherwise a public parameterless constructor is preferred (and
+	/// <c>[JsonConstructor]</c> wins outright; a value type without one is treated as using its
+	/// implicit parameterless constructor; otherwise a public parameterless constructor is preferred (and
 	/// binds no properties at all, since it takes no parameters); otherwise a single public
 	/// parameterized constructor is used; otherwise the choice is genuinely ambiguous between
 	/// multiple candidate constructors and no constructor is treated as authoritative for binding
@@ -688,11 +699,15 @@ internal static class RequirementRuleCompiler
 		if (type.IsValueType)
 		{
 			// A value type always has an implicit parameterless constructor, which
-			// Type.GetConstructors() does not report. System.Text.Json uses it for any value type
-			// without an explicit [JsonConstructor], regardless of how many public parameterized
-			// constructors the struct happens to declare -- so no property is constructor-bound, and
-			// treating a get-only property as populated here would validate a member the payload was
-			// discarded for.
+			// Type.GetConstructors() does not report. Absent an explicit [JsonConstructor],
+			// System.Text.Json is taken here to use it rather than any parameterized constructor the
+			// struct declares -- so no property is treated as constructor-bound, and a get-only
+			// property is not validated against a payload the serializer discarded.
+			//
+			// Like the rest of this method that is an approximation rather than a guarantee, and it
+			// is deliberately the conservative one: returning null costs enforcement, whereas
+			// naming the wrong constructor costs a false positive. Positional record structs are
+			// unaffected either way -- their members report a non-null Set and never reach here.
 			return null;
 		}
 

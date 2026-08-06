@@ -164,7 +164,10 @@ exception.MissingProperties   // ["Tuning", "Child.Tuning"]
                               // dicts:  "Lookup.a.Tuning"
 ```
 
-**Serialization is not validated.** `Write` is plain delegation.
+**Serialization is not validated.** `Write` is plain delegation. It can still throw, but only to refuse
+a configuration this library cannot support: `ReferenceHandler` and a type-level
+`[JsonObjectCreationHandling]` are rejected on write as well as on read. See
+[Limitations](#limitations).
 
 ## Supported Frameworks
 
@@ -216,16 +219,37 @@ that converter is a custom one, so claiming such a type would break a working po
 both read and write merely by registering this library. Refusing to claim keeps it working; the cost is
 no enforcement inside the hierarchy.
 
+That cost extends one step further than it first appears. A container whose *only* route to a decorated
+type runs through a polymorphic member is itself left unclaimed, so violations found beneath it are
+reported with the path rooted at the inner type rather than at the container — `Tuning` rather than
+`Shape.Child.Tuning`. The requirement is still enforced; only the prefix is lost. Refusal is also
+decided by *declared* type participation, so a decorated class that merely implements an interface
+carrying `[JsonDerivedType]` is skipped even when it is deserialized concretely and no polymorphic
+dispatch ever happens.
+
 **`JsonObjectCreationHandling.Populate` is not supported and throws `NotSupportedException`.** The
 converter re-materializes each claimed subtree into a fresh instance, so the object System.Text.Json
-intended to populate would be discarded together with anything already in it. Either unregister the
-factory or stop using `Populate`.
+intended to populate would be discarded together with anything already in it. All three routes to
+`Populate` are refused — `JsonSerializerOptions.PreferredObjectCreationHandling`, a type-level
+`[JsonObjectCreationHandling]`, and a property-level one. Either unregister the factory or stop using
+`Populate`.
 
-**`ReferenceHandler` is not supported and throws `NotSupportedException`.** The buffered JSON of a
-`$ref` node carries none of the referenced object's properties, so every armed requirement on it would
-be reported missing, and a `$values` array arrives as a JSON object the walk cannot descend into.
-Modelling `$id`/`$ref`/`$values` correctly is future work; until then the error is loud rather than
-wrong.
+The options-level and property-level routes throw on **deserialization only**; serializing with them
+configured still works, because `Populate` cannot affect writing. The type-level route is the
+exception: it throws on both. Claiming a type gives it a converter, which makes its `JsonTypeInfoKind`
+`None`, and System.Text.Json then refuses to apply a type-level `[JsonObjectCreationHandling]` to a
+contract with no property model — in either direction. There is no working write path to preserve
+there, so the library throws first and says why, instead of leaving you with
+`InvalidOperationException: Invalid JsonTypeInfo operation for JsonTypeInfoKind 'None'`.
+
+**`ReferenceHandler` is not supported and throws `NotSupportedException`, on both read and write.** The
+buffered JSON of a `$ref` node carries none of the referenced object's properties, so every armed
+requirement on it would be reported missing, and a `$values` array arrives as a JSON object the walk
+cannot descend into. Writing on its own is in fact correct — `Write` delegates through options that
+keep the handler — but a document this library emitted with `$id`/`$ref`/`$values` is one it would then
+reject on read, so writing is refused too rather than letting the library produce input it cannot
+consume. Modelling `$id`/`$ref`/`$values` correctly is future work; until then the error is loud rather
+than wrong.
 
 **Not compatible with trimming or ahead-of-time compilation.** The factory is annotated with
 `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`; constructing it in a trimmed or AOT-published

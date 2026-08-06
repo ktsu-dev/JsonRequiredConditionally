@@ -123,6 +123,28 @@ Two responses exist, and which one applies is deliberate: polymorphic hierarchie
 (a working model must keep working when the library is registered), while `ReferenceHandler` and
 `JsonObjectCreationHandling.Populate` **throw** (there is no way to be silently right).
 
+The throws are split by the path they can actually affect, in `SerializerFeatureGuard`:
+
+| Feature | Refused in | Read | Write |
+|---------|-----------|------|-------|
+| `ReferenceHandler` | `EnsureCanClaim` (factory) | throws | throws |
+| Type-level `[JsonObjectCreationHandling]` | `EnsureCanClaim` (factory) | throws | throws |
+| `JsonSerializerOptions.PreferredObjectCreationHandling` | `EnsureCanRead` (converter `Read`) | throws | works |
+| Property-level `[JsonObjectCreationHandling]` | `EnsureCanRead` (converter `Read`) | throws | works |
+
+`Populate` is deserialization-only, so refusing it on write would protect nothing — except for the
+type-level route, where claiming the type makes its `JsonTypeInfoKind` `None` and System.Text.Json then
+refuses to apply the attribute in *either* direction; throwing first replaces its
+`InvalidOperationException: Invalid JsonTypeInfo operation for JsonTypeInfoKind 'None'` with an
+explanation. Neither check may move into the converter's **constructor**: `Activator.CreateInstance`
+would wrap it in `TargetInvocationException`. `Read` is safe because System.Text.Json calls it directly.
+
+Getting the holder *claimed* is what routes it into the guard at all. `IsPopulatedByDeserialization`
+therefore treats a get-only property as populated when its declaring contract prefers `Populate` —
+without that, a holder whose only decorated member sat behind a populated get-only property was never
+claimed, was never asked about, and silently lost its payload when the inner type's converter returned
+a fresh instance the holder had no setter to accept.
+
 **Presence, not non-nullness**: a rule is satisfied when the JSON property is present in the payload,
 regardless of whether its value is `null` — mirroring `[JsonRequired]`'s own semantics.
 

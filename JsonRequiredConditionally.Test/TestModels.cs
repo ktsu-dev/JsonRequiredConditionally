@@ -494,3 +494,33 @@ public sealed class UnconvertibleSiblingConfig
 	[JsonRequiredIfSiblingIs(nameof(Id), 1)]
 	public string? Detail { get; set; }
 }
+
+/// <summary>
+/// A holder with a get-only child, used to drive the <c>JsonObjectCreationHandling</c> guard.
+/// </summary>
+/// <remarks>
+/// The object-creation handling is applied by a resolver modifier rather than by
+/// <c>[JsonObjectCreationHandling]</c>, because that attribute postdates net7.0's in-box
+/// System.Text.Json and this test project is compiled once for every framework in the matrix. The
+/// guard reads the resolved contract rather than the attribute, so both routes reach the same code.
+/// This type carries its own decorated member so it is claimed independently of the get-only child:
+/// the guard tests therefore exercise the guard rather than eligibility.
+/// </remarks>
+public sealed class PopulateGuardHolder
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public SimpleConfig Child { get; } = new();
+}
+
+/// <summary>
+/// A holder whose only route to a decorated member is a get-only property, so it is claimed only
+/// when that property counts as populated.
+/// </summary>
+public sealed class GetOnlyChildHolder
+{
+	public SimpleConfig Child { get; } = new();
+}

@@ -56,7 +56,9 @@ public sealed class JsonRequiredConditionallyConverterFactory : JsonConverterFac
 		// Deliberately before Activator.CreateInstance rather than inside the converter's
 		// constructor: anything a constructor throws from there arrives wrapped in a
 		// TargetInvocationException, and this exception is meant for the caller to read.
-		SerializerFeatureGuard.EnsureSupported(typeToConvert, options);
+		// Only the features that break writing as well as reading are checked here; the
+		// deserialization-only ones are checked in the converter's Read.
+		SerializerFeatureGuard.EnsureCanClaim(typeToConvert, options);
 
 		Type converterType = typeof(JsonRequiredConditionallyConverter<>).MakeGenericType(typeToConvert);
 

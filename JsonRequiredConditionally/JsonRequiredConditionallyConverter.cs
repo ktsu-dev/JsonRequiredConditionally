@@ -31,8 +31,17 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 	}
 
 	/// <inheritdoc/>
+	/// <exception cref="NotSupportedException">
+	/// <paramref name="options"/> or <typeparamref name="T"/> configure
+	/// <c>JsonObjectCreationHandling.Populate</c>, which this library cannot validate through.
+	/// </exception>
 	public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
+		// Populate affects deserialization only, so it is refused here rather than at claim time:
+		// an options instance used purely for serialization must keep working. System.Text.Json
+		// calls Read directly, so this exception reaches the caller unwrapped.
+		SerializerFeatureGuard.EnsureCanRead(typeof(T), userOptions);
+
 		if (reader.TokenType == JsonTokenType.Null)
 		{
 			return default;

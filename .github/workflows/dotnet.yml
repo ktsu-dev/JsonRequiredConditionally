@@ -67,17 +67,7 @@ jobs:
       - name: Setup .NET SDK ${{ env.DOTNET_VERSION }}
         uses: actions/setup-dotnet@v6
         with:
-          # The test project is multi-targeted to net7.0/net8.0/net9.0/net10.0 so each in-box
-          # System.Text.Json version the library ships against is genuinely exercised, and it
-          # deliberately clears the RuntimeFrameworkVersion that ktsu.Sdk pins to 10.0.0 so that
-          # every leg binds its own shared framework rather than all four running on .NET 10.
-          # That only runs if those runtimes are present, so they are installed here.
-          # RuntimeMatrixTests fails the build if a leg silently rolls forward onto a newer runtime.
-          dotnet-version: |
-            7.0.x
-            8.0.x
-            9.0.x
-            ${{ env.DOTNET_VERSION }}.x
+          dotnet-version: ${{ env.DOTNET_VERSION }}.x
           # setup-dotnet caches the NuGet global packages folder and keys it on a hash of these
           # files. The csproj files alone are not enough: this repository uses central package
           # management, so Directory.Packages.props is where versions actually live, and global.json
@@ -89,6 +79,26 @@ jobs:
             **/*.csproj
             **/Directory.Packages.props
             **/global.json
+
+      # REPO-OWNED STEP -- not part of the workflow template the ktsu fleet syncs.
+      #
+      # It is deliberately a separate step rather than extra entries in the `dotnet-version` list of
+      # the step above, because that step IS synced from the central template and a future sync
+      # would silently drop them, leaving the net7.0 and net9.0 legs unable to launch.
+      #
+      # The test project is multi-targeted to net7.0/net8.0/net9.0/net10.0 so each in-box
+      # System.Text.Json version the library ships against is genuinely exercised, and it clears the
+      # RuntimeFrameworkVersion that ktsu.Sdk pins to 10.0.0 so every leg binds its own shared
+      # framework instead of all four running on .NET 10. A leg whose runtime is missing does not
+      # roll forward -- it fails to launch. RuntimeMatrixTests fails the build if one ever does roll
+      # forward. Only this job runs the tests, so one step suffices.
+      - name: Install the runtimes the test matrix needs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            7.0.x
+            8.0.x
+            9.0.x
 
       # Ensure NuGet packages directory exists for caching (prevents error when pipeline exits early)
       - name: Ensure NuGet cache directory exists

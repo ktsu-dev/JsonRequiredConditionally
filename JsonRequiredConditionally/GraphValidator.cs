@@ -97,7 +97,7 @@ internal static class GraphValidator
 			// A member System.Text.Json could never have populated during deserialization must not
 			// be validated against the JSON either: its current value is whatever its initializer
 			// set, unrelated to this payload.
-			if (!RequirementRuleCompiler.IsPopulatedByDeserialization(property))
+			if (!RequirementRuleCompiler.IsPopulatedByDeserialization(typeInfo, property))
 			{
 				continue;
 			}
