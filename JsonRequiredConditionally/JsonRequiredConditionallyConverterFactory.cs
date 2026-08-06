@@ -50,31 +50,3 @@ public sealed class JsonRequiredConditionallyConverterFactory : JsonConverterFac
 		}
 	}
 }
-
-/// <summary>
-/// Delegates to the root factory for every type except one, breaking converter re-entrancy for
-/// the type currently being materialized while leaving every other type validated.
-/// </summary>
-internal sealed class ExcludingFactory(
-	Type excludedType,
-	JsonRequiredConditionallyConverterFactory root,
-	JsonSerializerOptions rootOptions) : JsonConverterFactory
-{
-	/// <summary>
-	/// Gets the type this factory refuses to convert.
-	/// </summary>
-	internal Type ExcludedType { get; } = excludedType;
-
-	/// <summary>
-	/// Gets the user's original options, propagated so every frame shares one cache root.
-	/// </summary>
-	internal JsonSerializerOptions RootOptions { get; } = rootOptions;
-
-	/// <inheritdoc/>
-	public override bool CanConvert(Type typeToConvert) =>
-		typeToConvert != ExcludedType && root.CanConvert(typeToConvert);
-
-	/// <inheritdoc/>
-	public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
-		root.CreateConverter(typeToConvert, options);
-}

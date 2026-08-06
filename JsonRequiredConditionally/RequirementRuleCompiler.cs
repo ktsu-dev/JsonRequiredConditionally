@@ -6,8 +6,10 @@ namespace ktsu.JsonRequiredConditionally;
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -20,6 +22,9 @@ internal static class RequirementRuleCompiler
 	private const BindingFlags SiblingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
 	private static readonly ConcurrentDictionary<Type, bool> EligibilityCache = new();
+
+	[SuppressMessage("Style", "IDE0028:Collection initialization can be simplified", Justification = "A collection expression does not compile for ConditionalWeakTable on netstandard2.0.")]
+	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, RequirementRule[]>> RuleCache = new();
 
 	/// <summary>
 	/// Determines whether a type carries at least one decorated member and is shaped like an object.
@@ -57,6 +62,20 @@ internal static class RequirementRuleCompiler
 		return [.. rules];
 	}
 
+	/// <summary>
+	/// Gets the cached requirement rules for a type under a given set of options.
+	/// </summary>
+	/// <param name="type">The type to get rules for.</param>
+	/// <param name="options">The options whose naming policy resolves JSON names.</param>
+	/// <returns>One rule per decorated member.</returns>
+	internal static RequirementRule[] GetRules(Type type, JsonSerializerOptions options)
+	{
+		ConcurrentDictionary<Type, RequirementRule[]> perType =
+			RuleCache.GetValue(options, static _ => new ConcurrentDictionary<Type, RequirementRule[]>());
+
+		return perType.GetOrAdd(type, t => Compile(t, options));
+	}
+
 	private static SiblingCondition[] BuildConditions(Type type, JsonRequiredIfSiblingIsAttribute[] attributes)
 	{
 		List<SiblingCondition> conditions = [];
@@ -73,7 +92,13 @@ internal static class RequirementRuleCompiler
 		return [.. conditions];
 	}
 
-	private static IEnumerable<MemberInfo> EnumerateCandidateMembers(Type type)
+	/// <summary>
+	/// Enumerates the public instance properties and fields of a type that are candidates for
+	/// carrying a <see cref="JsonRequiredIfSiblingIsAttribute"/> or being a sibling.
+	/// </summary>
+	/// <param name="type">The type to enumerate.</param>
+	/// <returns>The type's public instance properties, then its public instance fields.</returns>
+	internal static IEnumerable<MemberInfo> EnumerateCandidateMembers(Type type)
 	{
 		foreach (PropertyInfo property in type.GetProperties(MemberFlags))
 		{
@@ -86,7 +111,14 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
-	private static string ResolveJsonName(MemberInfo member, JsonSerializerOptions options)
+	/// <summary>
+	/// Resolves the JSON name a member serializes under, honouring an explicit
+	/// <see cref="JsonPropertyNameAttribute"/> before falling back to the options' naming policy.
+	/// </summary>
+	/// <param name="member">The member to resolve a name for.</param>
+	/// <param name="options">The options whose naming policy applies absent an explicit name.</param>
+	/// <returns>The JSON name for the member.</returns>
+	internal static string ResolveJsonName(MemberInfo member, JsonSerializerOptions options)
 	{
 		JsonPropertyNameAttribute? nameAttribute = member.GetCustomAttribute<JsonPropertyNameAttribute>(inherit: true);
 

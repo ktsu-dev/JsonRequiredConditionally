@@ -6,11 +6,19 @@
     <TargetFrameworks>net10.0;net9.0;net8.0;net7.0;net6.0;net5.0;netstandard2.0;netstandard2.1;</TargetFrameworks>
   </PropertyGroup>
 
+  <!-- net5.0's in-box System.Text.Json predates JsonElement.Deserialize<T>(); pull in a current
+       package version, same as the netstandard targets below already do. The package no longer
+       ships a net5.0-specific asset, so the SDK warns that its netstandard2.0 asset is unverified
+       there; that warning is expected and intentionally suppressed for this one target. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net5.0'">
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Polyfill" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1' Or '$(TargetFramework)' == 'net5.0'">
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 </Project>

@@ -4,7 +4,6 @@
 
 namespace ktsu.JsonRequiredConditionally.Tests;
 
-using System.Text;
 using System.Text.Json;
 
 [TestClass]
@@ -12,11 +11,9 @@ public class PresenceScannerTests
 {
 	private static HashSet<string> Scan(string json, StringComparer? comparer = null)
 	{
-		byte[] bytes = Encoding.UTF8.GetBytes(json);
-		Utf8JsonReader reader = new(bytes);
-		reader.Read();
+		using JsonDocument document = JsonDocument.Parse(json);
 
-		return PresenceScanner.ScanPropertyNames(reader, comparer ?? StringComparer.Ordinal);
+		return PresenceScanner.ScanPropertyNames(document.RootElement, comparer ?? StringComparer.Ordinal);
 	}
 
 	[TestMethod]
@@ -76,17 +73,5 @@ public class PresenceScannerTests
 		HashSet<string> names = Scan("""{"Tuning":1}""", StringComparer.OrdinalIgnoreCase);
 
 		Assert.IsTrue(names.Contains("tuning"));
-	}
-
-	[TestMethod]
-	public void DoesNotAdvanceTheCallersReader()
-	{
-		byte[] bytes = Encoding.UTF8.GetBytes("""{"a":1,"b":2}""");
-		Utf8JsonReader reader = new(bytes);
-		reader.Read();
-
-		PresenceScanner.ScanPropertyNames(reader, StringComparer.Ordinal);
-
-		Assert.AreEqual(JsonTokenType.StartObject, reader.TokenType);
 	}
 }

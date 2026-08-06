@@ -72,16 +72,47 @@ public class NestingTests
 	}
 
 	[TestMethod]
-	public void InnerOptionsAreCachedPerRootAndExcludedType()
+	public void SelfReferentialChildIsValidated()
 	{
-		JsonSerializerOptions root = CreateOptions();
-		JsonRequiredConditionallyConverterFactory factory = new();
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TreeNode>(
+				"""{"Kind":"Basic","Child":{"Kind":"Advanced"}}""", CreateOptions()));
+	}
 
-		JsonSerializerOptions first = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
-		JsonSerializerOptions second = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
-		JsonSerializerOptions other = InnerOptionsCache.Get(root, typeof(OrConfig), factory);
+	[TestMethod]
+	public void SelfReferentialGrandchildIsValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TreeNode>(
+				"""{"Kind":"Basic","Child":{"Kind":"Basic","Child":{"Kind":"Advanced"}}}""", CreateOptions()));
+	}
 
-		Assert.AreSame(first, second);
-		Assert.AreNotSame(first, other);
+	[TestMethod]
+	public void ValidSelfReferentialGraphDeserializes()
+	{
+		TreeNode? node = JsonSerializer.Deserialize<TreeNode>(
+			"""{"Kind":"Advanced","Tuning":"a","Child":{"Kind":"Advanced","Tuning":"b"}}""", CreateOptions());
+
+		Assert.IsNotNull(node);
+		Assert.AreEqual("b", node.Child!.Tuning);
+	}
+
+	[TestMethod]
+	public void SelfReferenceThroughCollectionIsValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<BranchNode>(
+				"""{"Kind":"Basic","Children":[{"Kind":"Basic","Children":[]},{"Kind":"Advanced","Children":[]}]}""",
+				CreateOptions()));
+	}
+
+	[TestMethod]
+	public void ViolationsAtDifferentDepthsAggregateIntoOneException()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TreeNode>(
+				"""{"Kind":"Advanced","Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.HasCount(2, exception.MissingProperties);
 	}
 }

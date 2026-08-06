@@ -7,41 +7,28 @@ namespace ktsu.JsonRequiredConditionally;
 using System.Text.Json;
 
 /// <summary>
-/// Collects the immediate property names of a JSON object without materializing it.
+/// Collects the immediate property names of a JSON object.
 /// </summary>
 internal static class PresenceScanner
 {
 	/// <summary>
-	/// Reads forward over a copy of the reader, collecting the current object's property names.
+	/// Collects the names of the properties physically present on a JSON object.
 	/// </summary>
-	/// <param name="reader">A copy of the caller's reader, parked on <see cref="JsonTokenType.StartObject"/>.</param>
+	/// <param name="element">The element to inspect.</param>
 	/// <param name="comparer">The comparer matching the serializer's case sensitivity.</param>
-	/// <returns>The set of property names physically present on the object.</returns>
-	internal static HashSet<string> ScanPropertyNames(Utf8JsonReader reader, StringComparer comparer)
+	/// <returns>The set of property names present on the object, empty for any other value kind.</returns>
+	internal static HashSet<string> ScanPropertyNames(JsonElement element, StringComparer comparer)
 	{
 		HashSet<string> names = new(comparer);
 
-		if (reader.TokenType != JsonTokenType.StartObject)
+		if (element.ValueKind != JsonValueKind.Object)
 		{
 			return names;
 		}
 
-		while (reader.Read())
+		foreach (JsonProperty property in element.EnumerateObject())
 		{
-			if (reader.TokenType == JsonTokenType.EndObject)
-			{
-				break;
-			}
-
-			if (reader.TokenType != JsonTokenType.PropertyName)
-			{
-				continue;
-			}
-
-			names.Add(reader.GetString()!);
-
-			reader.Read();
-			reader.Skip();
+			names.Add(property.Name);
 		}
 
 		return names;

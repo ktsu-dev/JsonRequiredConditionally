@@ -13,9 +13,8 @@ using System.Text.Json.Serialization;
 /// <typeparam name="T">The type being converted.</typeparam>
 internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 {
-	private readonly JsonSerializerOptions innerOptions;
-	private readonly RequirementRule[] rules;
-	private readonly StringComparer nameComparer;
+	private readonly JsonSerializerOptions plainOptions;
+	private readonly JsonSerializerOptions userOptions;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="JsonRequiredConditionallyConverter{T}"/> class.
@@ -27,9 +26,8 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 		Ensure.NotNull(options);
 		Ensure.NotNull(factory);
 
-		rules = RequirementRuleCompiler.Compile(typeof(T), options);
-		nameComparer = options.PropertyNameCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-		innerOptions = InnerOptionsCache.Get(InnerOptionsCache.FindRoot(options), typeof(T), factory);
+		userOptions = options;
+		plainOptions = PlainOptionsCache.Get(options);
 	}
 
 	/// <inheritdoc/>
@@ -40,13 +38,13 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 			return default;
 		}
 
-		HashSet<string> present = PresenceScanner.ScanPropertyNames(reader, nameComparer);
+		using JsonDocument document = JsonDocument.ParseValue(ref reader);
 
-		T? value = JsonSerializer.Deserialize<T>(ref reader, innerOptions);
+		T? value = document.RootElement.Deserialize<T>(plainOptions);
 
 		if (value is not null)
 		{
-			Validate(value, present);
+			GraphValidator.Validate(document.RootElement, value, userOptions);
 		}
 
 		return value;
@@ -54,31 +52,5 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 	/// <inheritdoc/>
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
-		JsonSerializer.Serialize(writer, value, innerOptions);
-
-	private void Validate(T value, HashSet<string> present)
-	{
-		List<string>? missing = null;
-
-		foreach (RequirementRule rule in rules)
-		{
-			if (present.Contains(rule.JsonName))
-			{
-				continue;
-			}
-
-			if (!rule.IsRequiredFor(value!))
-			{
-				continue;
-			}
-
-			missing ??= [];
-			missing.Add(rule.JsonName);
-		}
-
-		if (missing is not null)
-		{
-			throw new JsonRequiredConditionallyException(missing);
-		}
-	}
+		JsonSerializer.Serialize(writer, value, plainOptions);
 }

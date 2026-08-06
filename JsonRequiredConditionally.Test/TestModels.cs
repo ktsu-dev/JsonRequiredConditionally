@@ -137,3 +137,27 @@ public sealed class NodeB
 
 	public NodeA? Next { get; set; }
 }
+
+/// <summary>Directly self-referential — the case the previous design silently skipped.</summary>
+public sealed class TreeNode
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public TreeNode? Child { get; set; }
+}
+
+/// <summary>Self-referential through a collection.</summary>
+public sealed class BranchNode
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture requires a settable collection for deserialization.")]
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture mirrors the shape a consumer would write.")]
+	public List<BranchNode> Children { get; set; } = [];
+}
