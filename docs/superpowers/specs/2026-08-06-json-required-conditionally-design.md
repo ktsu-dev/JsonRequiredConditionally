@@ -130,6 +130,31 @@ underlying type before comparing. Without this, `[JsonRequiredIfSiblingIs(nameof
 `Kind`-typed sibling boxes an `int` and silently never matches. Strings compare ordinal. A `null`
 argument matches a null sibling.
 
+### Unresolvable sibling names
+
+If `SiblingName` does not resolve to a readable property or field on the declaring type, rule
+compilation throws `InvalidOperationException` naming the type and the unresolved member. This is a
+coding error, not a data error, so it fails loudly at first use of the type rather than being treated
+as a non-matching condition — silently degrading to "never required" would turn a typo into a rule
+that quietly never fires.
+
+### Absent siblings
+
+Sibling values are read from the materialized object, so a sibling that was itself absent from the
+payload reads as its CLR default. An enum sibling whose zero value is a meaningful case is therefore
+matched by an absent sibling:
+
+```csharp
+[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Basic)]  // Basic == 0
+public string? Name { get; set; }
+// {} -> Kind defaults to Basic, so Name is required
+```
+
+This is accepted rather than worked around. It follows directly from evaluating against the object
+instead of the payload, which is what makes records and constructor-parameterized types work. Callers
+who need to distinguish "absent" from "defaulted" should mark the sibling `[JsonRequired]` or make it
+nullable. Covered by a test so the behavior is pinned.
+
 ## Architecture
 
 ### Type selection
@@ -211,7 +236,11 @@ MSTest, semantic asserts, per ktsu convention.
   `PropertyNameCaseInsensitive`.
 - Enum normalization: boxed `int` argument matches the equivalent enum sibling.
 - `null` attribute argument matches a null sibling.
-- Nested objects are validated, including inside collections and dictionaries.
+- Nested objects are validated, including as elements of collections and dictionary values. The
+  collection itself is never converted; validation reaches elements because STJ routes each element
+  type through the factory independently.
+- An unresolvable `SiblingName` throws `InvalidOperationException` on first use of the type.
+- An absent sibling reads as its CLR default, and a zero-valued enum condition matches it.
 - Records and constructor-parameterized types.
 - Cyclic type graphs (`T → U → T`) validate at every level.
 - Multiple violations aggregate into one exception.
