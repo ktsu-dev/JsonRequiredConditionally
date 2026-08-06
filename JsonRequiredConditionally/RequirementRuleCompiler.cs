@@ -97,13 +97,13 @@ internal static class RequirementRuleCompiler
 
 	private static Func<object, object?> CreateAccessor(Type type, string siblingName)
 	{
-		PropertyInfo? property = type.GetProperty(siblingName, SiblingFlags);
+		PropertyInfo? property = FindProperty(type, siblingName);
 		if (property is not null && property.CanRead)
 		{
 			return instance => property.GetValue(instance);
 		}
 
-		FieldInfo? field = type.GetField(siblingName, SiblingFlags);
+		FieldInfo? field = FindField(type, siblingName);
 		if (field is not null)
 		{
 			return instance => field.GetValue(instance);
@@ -111,6 +111,32 @@ internal static class RequirementRuleCompiler
 
 		throw new InvalidOperationException(
 			$"[{nameof(JsonRequiredIfSiblingIsAttribute)}] on type '{type.Name}' names sibling '{siblingName}', which is not a readable property or field of that type.");
+	}
+
+	private static PropertyInfo? FindProperty(Type type, string siblingName)
+	{
+		try
+		{
+			return type.GetProperty(siblingName, SiblingFlags);
+		}
+		catch (AmbiguousMatchException)
+		{
+			// A derived type hides a same-named base member; prefer the most-derived one.
+			return type.GetProperty(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
+		}
+	}
+
+	private static FieldInfo? FindField(Type type, string siblingName)
+	{
+		try
+		{
+			return type.GetField(siblingName, SiblingFlags);
+		}
+		catch (AmbiguousMatchException)
+		{
+			// A derived type hides a same-named base member; prefer the most-derived one.
+			return type.GetField(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
+		}
 	}
 
 	private static bool IsEligible(Type type)

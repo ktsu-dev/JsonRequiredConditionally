@@ -76,3 +76,22 @@ public sealed class BrokenConfig
 	[JsonRequiredIfSiblingIs("NoSuchMember", Kind.Advanced)]
 	public string? Tuning { get; set; }
 }
+
+/// <summary>Base type whose sibling a derived type hides with a differently-typed member.</summary>
+public class HidingBaseConfig
+{
+	public object? Kind { get; set; }
+}
+
+/// <summary>
+/// Hides the base sibling with `new`. The hiding member has a different type than the hidden one,
+/// which is what makes <see cref="Type.GetProperty(string, System.Reflection.BindingFlags)"/> report
+/// an ambiguous match instead of silently resolving to the most-derived member.
+/// </summary>
+public sealed class HidingConfig : HidingBaseConfig
+{
+	public new Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}

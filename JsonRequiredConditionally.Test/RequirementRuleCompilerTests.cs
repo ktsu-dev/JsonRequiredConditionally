@@ -91,4 +91,13 @@ public class RequirementRuleCompilerTests
 		StringAssert.Contains(exception.Message, "NoSuchMember");
 		StringAssert.Contains(exception.Message, nameof(BrokenConfig));
 	}
+
+	[TestMethod]
+	public void HiddenSiblingResolvesToTheMostDerivedMember()
+	{
+		RequirementRule[] rules = RequirementRuleCompiler.Compile(typeof(HidingConfig), new JsonSerializerOptions());
+
+		Assert.IsTrue(rules[0].IsRequiredFor(new HidingConfig { Kind = Kind.Advanced }));
+		Assert.IsFalse(rules[0].IsRequiredFor(new HidingConfig { Kind = Kind.Basic }));
+	}
 }
