@@ -4,6 +4,7 @@
 
 namespace ktsu.JsonRequiredConditionally.Tests;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 
 public enum Kind
@@ -94,4 +95,45 @@ public sealed class HidingConfig : HidingBaseConfig
 
 	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
 	public string? Tuning { get; set; }
+}
+
+/// <summary>Holds a decorated child, to prove nested validation runs.</summary>
+public sealed class OuterConfig
+{
+	public string? Label { get; set; }
+
+	public SimpleConfig? Child { get; set; }
+}
+
+/// <summary>Holds decorated children in collections.</summary>
+public sealed class CollectionConfig
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<SimpleConfig> Items { get; set; } = [];
+
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Dictionary<string, SimpleConfig> Lookup { get; set; } = [];
+}
+
+/// <summary>Mutually recursive with <see cref="NodeB"/>.</summary>
+public sealed class NodeA
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public NodeB? Next { get; set; }
+}
+
+/// <summary>Mutually recursive with <see cref="NodeA"/>.</summary>
+public sealed class NodeB
+{
+	public Mode Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), Mode.Remote)]
+	public string? Endpoint { get; set; }
+
+	public NodeA? Next { get; set; }
 }
