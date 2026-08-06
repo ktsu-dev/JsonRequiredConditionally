@@ -7,6 +7,7 @@ namespace ktsu.JsonRequiredConditionally;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
 /// Caches, per options instance, a clone with this library's factory removed. Materializing through
@@ -40,6 +41,14 @@ internal static class PlainOptionsCache
 				plain.Converters.RemoveAt(i);
 			}
 		}
+
+		// GraphValidator asks this clone for its own JsonTypeInfo model. An options instance whose
+		// resolver has never been consulted throws when asked directly (as opposed to going through
+		// JsonSerializer.Deserialize, which resolves one implicitly on first use) -- setting this
+		// eagerly makes that available immediately rather than depending on Read's own Deserialize
+		// call happening to run first. ??= preserves any resolver (e.g. a source-generated context)
+		// the caller already configured.
+		plain.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
 
 		return plain;
 	}

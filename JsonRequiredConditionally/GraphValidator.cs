@@ -5,9 +5,9 @@
 namespace ktsu.JsonRequiredConditionally;
 
 using System.Collections;
-using System.Reflection;
+using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
 /// Walks a materialized object graph alongside the JSON it came from, applying requirement rules at
@@ -24,17 +24,23 @@ internal static class GraphValidator
 	/// </summary>
 	/// <param name="element">The JSON the object was materialized from.</param>
 	/// <param name="instance">The materialized object.</param>
-	/// <param name="options">The options whose naming policy and case sensitivity apply.</param>
+	/// <param name="plainOptions">
+	/// The factory-free options the object was actually materialized through. Its own
+	/// <see cref="JsonTypeInfo"/> model -- not a reflection re-implementation of it -- drives which
+	/// members the walk descends into, so it agrees exactly with what System.Text.Json itself
+	/// populated.
+	/// </param>
+	/// <param name="userOptions">The caller's own options, whose naming policy and case sensitivity apply to rule evaluation.</param>
 	/// <exception cref="JsonRequiredConditionallyException">One or more requirements were unmet.</exception>
-	internal static void Validate(JsonElement element, object instance, JsonSerializerOptions options)
+	internal static void Validate(JsonElement element, object instance, JsonSerializerOptions plainOptions, JsonSerializerOptions userOptions)
 	{
-		StringComparer comparer = options.PropertyNameCaseInsensitive
+		StringComparer comparer = userOptions.PropertyNameCaseInsensitive
 			? StringComparer.OrdinalIgnoreCase
 			: StringComparer.Ordinal;
 
 		List<string> missing = [];
 
-		Walk(element, instance, options, comparer, string.Empty, missing);
+		Walk(element, instance, plainOptions, userOptions, comparer, string.Empty, missing);
 
 		if (missing.Count > 0)
 		{
@@ -45,7 +51,8 @@ internal static class GraphValidator
 	private static void Walk(
 		JsonElement element,
 		object instance,
-		JsonSerializerOptions options,
+		JsonSerializerOptions plainOptions,
+		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
 		List<string> missing)
@@ -61,7 +68,7 @@ internal static class GraphValidator
 		{
 			HashSet<string> present = PresenceScanner.ScanPropertyNames(element, comparer);
 
-			foreach (RequirementRule rule in RequirementRuleCompiler.GetRules(type, options))
+			foreach (RequirementRule rule in RequirementRuleCompiler.GetRules(type, userOptions))
 			{
 				if (!present.Contains(rule.JsonName) && rule.IsRequiredFor(instance))
 				{
@@ -70,73 +77,46 @@ internal static class GraphValidator
 			}
 		}
 
-		foreach (KeyValuePair<string, MemberInfo> candidate in SelectDescendantMembers(type, options, comparer))
+		// A type carrying its own custom converter has an empty Properties list here -- System.Text.Json
+		// does not describe what such a converter does internally. The walk simply cannot see beneath
+		// it; this is a known, accepted boundary of validating through the materialized graph rather
+		// than the token stream, not a false positive or a crash.
+		JsonTypeInfo? typeInfo = RequirementRuleCompiler.TryGetTypeInfo(plainOptions, type);
+
+		if (typeInfo is null)
 		{
-			object? value = ReadMember(candidate.Value, instance);
+			return;
+		}
+
+		foreach (JsonPropertyInfo property in typeInfo.Properties)
+		{
+			// A member System.Text.Json could never have populated during deserialization (get-only
+			// with no setter, or otherwise not settable) must not be validated against the JSON
+			// either: its current value is whatever its initializer set, unrelated to this payload.
+			if (property.Get is null || property.Set is null)
+			{
+				continue;
+			}
+
+			object? value = property.Get(instance);
 
 			if (value is null)
 			{
 				continue;
 			}
 
-			if (TryGetProperty(element, candidate.Key, comparer, options.PropertyNameCaseInsensitive, out JsonElement child))
+			if (TryGetProperty(element, property.Name, comparer, userOptions.PropertyNameCaseInsensitive, out JsonElement child))
 			{
-				Descend(child, value, options, comparer, Combine(path, candidate.Key), missing);
+				Descend(child, value, plainOptions, userOptions, comparer, Combine(path, property.Name), missing);
 			}
 		}
 	}
-
-	/// <summary>
-	/// Selects, for each distinct JSON name, the single most-derived candidate member that carries
-	/// it, skipping members STJ itself would never populate.
-	/// </summary>
-	/// <param name="type">The type to enumerate members of.</param>
-	/// <param name="options">The options whose naming policy resolves JSON names.</param>
-	/// <param name="comparer">The comparer matching the serializer's case sensitivity.</param>
-	/// <returns>One member per distinct JSON name.</returns>
-	private static Dictionary<string, MemberInfo> SelectDescendantMembers(
-		Type type,
-		JsonSerializerOptions options,
-		StringComparer comparer)
-	{
-		Dictionary<string, MemberInfo> selected = new(comparer);
-
-		foreach (MemberInfo member in RequirementRuleCompiler.EnumerateCandidateMembers(type))
-		{
-			if (member.IsDefined(typeof(JsonIgnoreAttribute), inherit: true))
-			{
-				continue;
-			}
-
-			string jsonName = RequirementRuleCompiler.ResolveJsonName(member, options);
-
-			if (selected.TryGetValue(jsonName, out MemberInfo? existing) && !IsMoreDerived(member, existing))
-			{
-				continue;
-			}
-
-			selected[jsonName] = member;
-		}
-
-		return selected;
-	}
-
-	/// <summary>
-	/// Determines whether a candidate member hides an already-selected member declared on a base type.
-	/// </summary>
-	/// <param name="candidate">The member under consideration.</param>
-	/// <param name="existing">The previously selected member sharing the same JSON name.</param>
-	/// <returns>True when <paramref name="candidate"/> is declared on a type more derived than <paramref name="existing"/>.</returns>
-	private static bool IsMoreDerived(MemberInfo candidate, MemberInfo existing) =>
-		existing.DeclaringType is not null &&
-		candidate.DeclaringType is not null &&
-		existing.DeclaringType != candidate.DeclaringType &&
-		existing.DeclaringType.IsAssignableFrom(candidate.DeclaringType);
 
 	private static void Descend(
 		JsonElement element,
 		object value,
-		JsonSerializerOptions options,
+		JsonSerializerOptions plainOptions,
+		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
 		List<string> missing)
@@ -144,15 +124,15 @@ internal static class GraphValidator
 		switch (element.ValueKind)
 		{
 			case JsonValueKind.Object when value is IDictionary dictionary:
-				DescendDictionary(element, dictionary, options, comparer, path, missing);
+				DescendDictionary(element, dictionary, plainOptions, userOptions, comparer, path, missing);
 				break;
 
 			case JsonValueKind.Object:
-				Walk(element, value, options, comparer, path, missing);
+				Walk(element, value, plainOptions, userOptions, comparer, path, missing);
 				break;
 
 			case JsonValueKind.Array when value is IEnumerable sequence:
-				DescendSequence(element, sequence, options, comparer, path, missing);
+				DescendSequence(element, sequence, plainOptions, userOptions, comparer, path, missing);
 				break;
 
 			default:
@@ -163,12 +143,13 @@ internal static class GraphValidator
 	private static void DescendDictionary(
 		JsonElement element,
 		IDictionary dictionary,
-		JsonSerializerOptions options,
+		JsonSerializerOptions plainOptions,
+		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
 		List<string> missing)
 	{
-		bool caseInsensitive = options.PropertyNameCaseInsensitive;
+		bool caseInsensitive = userOptions.PropertyNameCaseInsensitive;
 
 		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
 		// indexer returns null for a key of the wrong CLR type (e.g. int) instead of matching the
@@ -176,7 +157,7 @@ internal static class GraphValidator
 		// (e.g. ImmutableDictionary). DictionaryEntry enumeration works uniformly for both.
 		foreach (DictionaryEntry entry in dictionary)
 		{
-			string? key = entry.Key?.ToString();
+			string? key = FormatKey(entry.Key);
 
 			if (key is null || entry.Value is null)
 			{
@@ -185,15 +166,30 @@ internal static class GraphValidator
 
 			if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
 			{
-				Descend(child, entry.Value, options, comparer, Combine(path, key), missing);
+				Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), missing);
 			}
 		}
 	}
 
+	/// <summary>
+	/// Formats a dictionary key the same way System.Text.Json writes it: invariantly, not under the
+	/// current culture. A negative <c>int</c> key under a culture whose negative sign is not ASCII
+	/// hyphen-minus would otherwise never match the JSON property name System.Text.Json produced.
+	/// </summary>
+	/// <param name="key">The dictionary entry's key.</param>
+	/// <returns>The key formatted invariantly, or null if the key itself is null.</returns>
+	private static string? FormatKey(object? key) => key switch
+	{
+		null => null,
+		IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+		_ => key.ToString(),
+	};
+
 	private static void DescendSequence(
 		JsonElement element,
 		IEnumerable sequence,
-		JsonSerializerOptions options,
+		JsonSerializerOptions plainOptions,
+		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
 		List<string> missing)
@@ -218,7 +214,7 @@ internal static class GraphValidator
 
 				if (item is not null)
 				{
-					Descend(itemElement, item, options, comparer, $"{path}[{index}]", missing);
+					Descend(itemElement, item, plainOptions, userOptions, comparer, $"{path}[{index}]", missing);
 				}
 
 				index++;
@@ -229,13 +225,6 @@ internal static class GraphValidator
 			(items as IDisposable)?.Dispose();
 		}
 	}
-
-	private static object? ReadMember(MemberInfo member, object instance) => member switch
-	{
-		PropertyInfo property when property.CanRead && property.GetIndexParameters().Length == 0 => property.GetValue(instance),
-		FieldInfo field => field.GetValue(instance),
-		_ => null,
-	};
 
 	private static bool TryGetProperty(
 		JsonElement element,

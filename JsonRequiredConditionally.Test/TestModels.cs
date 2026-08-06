@@ -173,10 +173,17 @@ public sealed class PayloadConfig
 	public object? Payload { get; set; }
 }
 
-/// <summary>A member excluded from serialization whose name collides with an unrelated JSON property.</summary>
+/// <summary>
+/// A member excluded from serialization whose name collides with an unrelated JSON property. Also
+/// carries a directly-decorated member so the type is genuinely claimed by the factory -- otherwise
+/// nothing here would ever reach the converter at all, since the only other member is ignored.
+/// </summary>
 public sealed class IgnoredMemberConfig
 {
 	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
 
 	[JsonIgnore]
 	public SimpleConfig Hidden { get; set; } = new() { Kind = Kind.Advanced };
@@ -187,4 +194,55 @@ public sealed class IntKeyedDictionaryConfig
 {
 	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
 	public Dictionary<int, SimpleConfig> Items { get; set; } = [];
+}
+
+/// <summary>Holds a decorated child through a <c>[JsonInclude]</c>d internal property.</summary>
+public sealed class IncludedNonPublicMemberConfig
+{
+	public SimpleConfig Public { get; set; } = new();
+
+	[JsonInclude]
+	internal SimpleConfig? Secret { get; set; }
+}
+
+/// <summary>
+/// A public field, pre-seeded via its initializer, that deserialization under default options
+/// (<c>IncludeFields = false</c>) never touches.
+/// </summary>
+public sealed class FieldHolderConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture specifically exercises the default IncludeFields=false behavior for public fields, which requires an actual field.")]
+	public SimpleConfig Child = new() { Kind = Kind.Advanced };
+}
+
+/// <summary>A get-only property, pre-seeded via its initializer, that deserialization never populates.</summary>
+public sealed class ReadOnlyPropertyConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public SimpleConfig ReadOnlyChild { get; } = new() { Kind = Kind.Advanced };
+}
+
+/// <summary>Base type whose object-valued member a derived type hides with `new`.</summary>
+public class HidingBaseObjectConfig
+{
+	public SimpleConfig Payload { get; set; } = new();
+}
+
+/// <summary>
+/// Hides the base member with `new`, to prove the walk validates the JSON "Payload" property
+/// exactly once -- via the most-derived member System.Text.Json itself resolves to -- rather than
+/// once per hidden/hiding member pair.
+/// </summary>
+public sealed class HidingObjectConfig : HidingBaseObjectConfig
+{
+	public new SimpleConfig Payload { get; set; } = new();
 }

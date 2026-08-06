@@ -44,7 +44,7 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 		if (value is not null)
 		{
-			GraphValidator.Validate(document.RootElement, value, userOptions);
+			GraphValidator.Validate(document.RootElement, value, plainOptions, userOptions);
 		}
 
 		return value;

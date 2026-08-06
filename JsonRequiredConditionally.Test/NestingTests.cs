@@ -38,7 +38,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}],"Lookup":{}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Items[1].Tuning" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEquivalent(new List<string> { "Items[1].Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -48,7 +48,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[],"Lookup":{"a":{"Kind":"Advanced"}}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Lookup.a.Tuning" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEquivalent(new List<string> { "Lookup.a.Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -58,7 +58,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<IntKeyedDictionaryConfig>(
 				"""{"Items":{"1":{"Kind":"Advanced"}}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Items.1.Tuning" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEquivalent(new List<string> { "Items.1.Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -119,7 +119,7 @@ public class NestingTests
 				"""{"Kind":"Basic","Children":[{"Kind":"Basic","Children":[]},{"Kind":"Advanced","Children":[]}]}""",
 				CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Children[1].Tuning" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEquivalent(new List<string> { "Children[1].Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -129,7 +129,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<TreeNode>(
 				"""{"Kind":"Advanced","Child":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Tuning", "Child.Tuning" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEquivalent(new List<string> { "Tuning", "Child.Tuning" }, exception.MissingProperties.ToList());
 	}
 
 	[TestMethod]
@@ -144,8 +144,14 @@ public class NestingTests
 	[TestMethod]
 	public void JsonIgnoredMemberIsNotDescendedEvenWhenNameCollidesWithRealJsonProperty()
 	{
+		// IgnoredMemberConfig carries its own directly-decorated Tuning, so it is genuinely claimed
+		// by the factory -- otherwise this test would pass identically whether or not [JsonIgnore]
+		// is honoured, since the converter would never run at all. Kind=Advanced with Tuning
+		// present satisfies the *real* requirement; the only way this throws is if the walk still
+		// descends into the ignored "Hidden" member and validates its default value (Kind=Advanced)
+		// against the "Hidden" JSON node's own (Tuning-less) content.
 		IgnoredMemberConfig? config = JsonSerializer.Deserialize<IgnoredMemberConfig>(
-			"""{"Kind":"Basic","Hidden":{"Kind":"Basic"}}""", CreateOptions());
+			"""{"Kind":"Advanced","Tuning":"x","Hidden":{"Kind":"Basic"}}""", CreateOptions());
 
 		Assert.IsNotNull(config);
 		Assert.AreEqual(Kind.Advanced, config.Hidden.Kind);
@@ -163,5 +169,49 @@ public class NestingTests
 		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<OuterConfig>(
 				"""{"label":"x","child":{"kind":"Advanced"}}""", options));
+	}
+
+	[TestMethod]
+	public void JsonIncludedNonPublicMemberIsValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<IncludedNonPublicMemberConfig>(
+				"""{"Public":{"Kind":"Basic"},"Secret":{"Kind":"Advanced"}}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void PublicFieldUnderDefaultOptionsIsNotValidated()
+	{
+		// Under default options (IncludeFields = false), System.Text.Json never writes into the
+		// Child field; it keeps its initializer value (Kind=Advanced, Tuning=null). A JSON "Child"
+		// node present in the payload is therefore irrelevant to it -- validating the field's
+		// current value against that unrelated node would be a false positive.
+		FieldHolderConfig? holder = JsonSerializer.Deserialize<FieldHolderConfig>(
+			"""{"Kind":"Basic","Child":{"Kind":"Basic"}}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual(Kind.Advanced, holder.Child.Kind);
+	}
+
+	[TestMethod]
+	public void GetOnlyPropertyIsNotValidated()
+	{
+		// A get-only property has no setter, so System.Text.Json never populates it either; it
+		// keeps its initializer value. Same false-positive shape as the field case above.
+		ReadOnlyPropertyConfig? holder = JsonSerializer.Deserialize<ReadOnlyPropertyConfig>(
+			"""{"Kind":"Basic","ReadOnlyChild":{"Kind":"Basic"}}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual(Kind.Advanced, holder.ReadOnlyChild.Kind);
+	}
+
+	[TestMethod]
+	public void HiddenObjectValuedMemberIsValidatedOnce()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<HidingObjectConfig>(
+				"""{"Payload":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		CollectionAssert.AreEquivalent(new List<string> { "Payload.Tuning" }, exception.MissingProperties.ToList());
 	}
 }

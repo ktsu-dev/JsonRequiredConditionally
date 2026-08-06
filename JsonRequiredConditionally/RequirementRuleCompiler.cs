@@ -12,6 +12,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
 /// Builds the requirement rules for a type by reflecting over its decorated members.
@@ -27,6 +28,16 @@ internal static class RequirementRuleCompiler
 	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, RequirementRule[]>> RuleCache = new();
 
 	/// <summary>
+	/// A reflection-based options instance used only to ask System.Text.Json's own contract model
+	/// which members of a type it would actually serialize, for the purpose of deciding whether a
+	/// type transitively reaches a decorated member. This is deliberately not derived from any
+	/// caller's options -- <see cref="System.Text.Json.Serialization.JsonConverterFactory"/>'s
+	/// <c>CanConvert</c> is only ever given a <see cref="Type"/>, so no caller options exist yet to
+	/// consult at this point; see the remarks on <see cref="HasRules"/>.
+	/// </summary>
+	private static readonly JsonSerializerOptions StructuralProbeOptions = new() { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
+
+	/// <summary>
 	/// Determines whether a type carries at least one decorated member, or transitively reaches a
 	/// type that does through its own members' object graph, and is itself shaped like an object.
 	/// </summary>
@@ -39,7 +50,105 @@ internal static class RequirementRuleCompiler
 	/// original options instead of being reached by this type's own graph walk — each losing all
 	/// path context above itself.
 	/// </remarks>
-	internal static bool HasRules(Type type) => EligibilityCache.GetOrAdd(type, static t => IsEligible(t, []));
+	/// <remarks>
+	/// <see cref="System.Text.Json.Serialization.JsonConverterFactory"/>'s <c>CanConvert</c> receives
+	/// only a <see cref="Type"/>, never the caller's <see cref="JsonSerializerOptions"/>, so this
+	/// reachability check cannot honour caller-specific settings such as <c>IncludeFields</c> or a
+	/// custom naming policy. It uses <see cref="StructuralProbeOptions"/> -- a fixed,
+	/// reflection-based, default-configured instance -- as the best available approximation of
+	/// "what would System.Text.Json actually walk into". This is an inherent limitation of the
+	/// claiming API, not something any implementation strategy here could fully avoid.
+	/// </remarks>
+	internal static bool HasRules(Type type)
+	{
+		if (EligibilityCache.TryGetValue(type, out bool cached))
+		{
+			return cached;
+		}
+
+		if (IsExcludedFromEligibility(type))
+		{
+			EligibilityCache.TryAdd(type, false);
+			return false;
+		}
+
+		HashSet<Type> visited = [];
+		List<Type> reachable = [];
+
+		if (CollectReachable(type, visited, reachable))
+		{
+			// A decorated type was found somewhere in the reachable graph. `type` is definitely
+			// eligible; other, not-yet-fully-explored nodes on the way are left uncached here and
+			// resolved independently (cheaply, since they benefit from whatever got cached during
+			// this pass) whenever they are queried directly.
+			EligibilityCache.TryAdd(type, true);
+			return true;
+		}
+
+		// The entire reachable component was explored -- each type visited at most once, via
+		// `visited` -- with no decoration found anywhere. Reachability is transitive: whatever any
+		// type in `reachable` can itself reach is a subset of what `type` reaches, so if nothing in
+		// the whole component is decorated, none of them are eligible either. Caching the whole
+		// component in one pass here is what keeps a densely-connected type graph (e.g. many
+		// mutually-referencing undecorated types) from being independently rediscovered, node by
+		// node, on every later call -- without it, resolving eligibility for a type graph shaped
+		// like a clique degrades to enumerating simple paths, which is factorial in the number of
+		// types.
+		foreach (Type visitedType in reachable)
+		{
+			EligibilityCache.TryAdd(visitedType, false);
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Collects every type reachable from <paramref name="type"/>, visiting each at most once, and
+	/// reports whether a directly-decorated type was found anywhere in the reachable graph.
+	/// </summary>
+	/// <param name="type">The type to explore from.</param>
+	/// <param name="visited">
+	/// Types already visited in this traversal. Doubles as cycle protection: a type is added before
+	/// its own members are explored, so a cyclic reference back to it is a no-op rather than
+	/// infinite recursion.
+	/// </param>
+	/// <param name="reachable">Accumulates every non-excluded type visited, in visitation order.</param>
+	/// <returns>True as soon as a directly-decorated type is found anywhere in the reachable graph.</returns>
+	private static bool CollectReachable(Type type, HashSet<Type> visited, List<Type> reachable)
+	{
+		if (IsExcludedFromEligibility(type) || !visited.Add(type))
+		{
+			return false;
+		}
+
+		if (EligibilityCache.TryGetValue(type, out bool cached))
+		{
+			// Already resolved by an earlier call: trust it rather than re-exploring. A cached
+			// `false` specifically means this type's entire reachable set was already proven, in
+			// full, to be decoration-free.
+			return cached;
+		}
+
+		reachable.Add(type);
+
+		if (HasDirectlyDecoratedMember(type))
+		{
+			return true;
+		}
+
+		foreach (Type memberType in EnumerateReachableMemberTypes(type))
+		{
+			if (CollectReachable(memberType, visited, reachable))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static bool IsExcludedFromEligibility(Type type) =>
+		type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || typeof(IEnumerable).IsAssignableFrom(type);
 
 	/// <summary>
 	/// Compiles the requirement rules for a type against a specific set of serializer options.
@@ -179,62 +288,6 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
-	/// <summary>
-	/// Determines eligibility, following the reachable object graph to find a decorated member
-	/// anywhere beneath <paramref name="type"/>.
-	/// </summary>
-	/// <param name="type">The type under consideration.</param>
-	/// <param name="visiting">
-	/// The types currently on the call stack, guarding against infinite recursion through cyclic
-	/// type graphs (mutually- or self-referential types). A cycle back to an ancestor contributes
-	/// no eligibility on its own; if a decorated type is reachable, it is reachable through some
-	/// other, non-cyclic edge that this same traversal also visits.
-	/// </param>
-	/// <returns>True when <paramref name="type"/> should be routed through the converter.</returns>
-	private static bool IsEligible(Type type, HashSet<Type> visiting)
-	{
-		if (type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal))
-		{
-			return false;
-		}
-
-		// A collection type is never claimed for itself: System.Text.Json has its own converters for
-		// these, and our converter's contract is "a single materialized object", not a sequence or
-		// map. Reachability through a collection-typed member still applies -- see
-		// EnumerateReachableMemberTypes, which unwraps the element/value type before recursing here.
-		if (typeof(IEnumerable).IsAssignableFrom(type))
-		{
-			return false;
-		}
-
-		if (!visiting.Add(type))
-		{
-			return false;
-		}
-
-		try
-		{
-			if (HasDirectlyDecoratedMember(type))
-			{
-				return true;
-			}
-
-			foreach (Type reachable in EnumerateReachableMemberTypes(type))
-			{
-				if (IsEligible(reachable, visiting))
-				{
-					return true;
-				}
-			}
-
-			return false;
-		}
-		finally
-		{
-			visiting.Remove(type);
-		}
-	}
-
 	private static bool HasDirectlyDecoratedMember(Type type)
 	{
 		foreach (MemberInfo member in EnumerateCandidateMembers(type))
@@ -249,33 +302,40 @@ internal static class RequirementRuleCompiler
 	}
 
 	/// <summary>
-	/// Enumerates the types reachable from a type's own candidate members, unwrapping collection
-	/// and dictionary members to their element or value type rather than the collection type itself.
+	/// Enumerates the types reachable from a type's own members, asking System.Text.Json's own
+	/// contract model (via <see cref="StructuralProbeOptions"/>) which members it would actually
+	/// serialize rather than re-deriving that from raw reflection. Collection and dictionary
+	/// members are unwrapped to their element or value type rather than yielding the collection
+	/// type itself.
 	/// </summary>
 	/// <param name="type">The type to enumerate reachable member types for.</param>
-	/// <returns>The type of each candidate member, or its element/value type when the member is a collection.</returns>
+	/// <returns>The type of each member System.Text.Json would populate, or its element/value type when the member is a collection.</returns>
+	/// <remarks>
+	/// This must use the same member model <see cref="GraphValidator"/>'s walk uses (property/field
+	/// inclusion, <c>[JsonIgnore]</c>, <c>[JsonInclude]</c>, hiding, <c>IncludeFields</c>), or
+	/// eligibility and descent would disagree about what is reachable -- eligibility could claim a
+	/// type the walk then never actually finds anything to descend into, or vice versa.
+	/// </remarks>
 	private static IEnumerable<Type> EnumerateReachableMemberTypes(Type type)
 	{
-		foreach (MemberInfo member in EnumerateCandidateMembers(type))
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(StructuralProbeOptions, type);
+
+		if (typeInfo is null)
 		{
-			// A member System.Text.Json itself will never populate cannot carry a reachable
-			// requirement: nothing will ever validate against JSON that member was never built from.
-			if (member.IsDefined(typeof(JsonIgnoreAttribute), inherit: true))
+			yield break;
+		}
+
+		foreach (JsonPropertyInfo property in typeInfo.Properties)
+		{
+			// A member System.Text.Json could never populate during deserialization (get-only with
+			// no setter, or otherwise not settable) cannot carry a reachable requirement either:
+			// nothing will ever validate against JSON such a member was never built from.
+			if (property.Get is null || property.Set is null)
 			{
 				continue;
 			}
 
-			Type? memberType = member switch
-			{
-				PropertyInfo property when property.GetIndexParameters().Length == 0 => property.PropertyType,
-				FieldInfo field => field.FieldType,
-				_ => null,
-			};
-
-			if (memberType is null)
-			{
-				continue;
-			}
+			Type memberType = property.PropertyType;
 
 			if (memberType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(memberType))
 			{
@@ -315,6 +375,37 @@ internal static class RequirementRuleCompiler
 				yield return candidateInterface.GetGenericArguments()[0];
 				yield break;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the System.Text.Json contract metadata for a type under a given set of options, or null
+	/// if the resolver cannot supply one.
+	/// </summary>
+	/// <param name="options">The options whose contract resolver describes the type.</param>
+	/// <param name="type">The type to get metadata for.</param>
+	/// <returns>The type's contract metadata, or null when the type is not supported by the resolver.</returns>
+	/// <remarks>
+	/// Observed empirically: an options instance whose resolver has never been consulted throws
+	/// <see cref="NotSupportedException"/> here, not <see cref="InvalidOperationException"/> as
+	/// might be assumed from the exception's usual role elsewhere in System.Text.Json. Both callers
+	/// of this method use an options instance with <see cref="JsonSerializerOptions.TypeInfoResolver"/>
+	/// explicitly set, which avoids that specific case, but both exceptions are caught here as a
+	/// defensive guard against any type the resolver genuinely cannot describe.
+	/// </remarks>
+	internal static JsonTypeInfo? TryGetTypeInfo(JsonSerializerOptions options, Type type)
+	{
+		try
+		{
+			return options.GetTypeInfo(type);
+		}
+		catch (InvalidOperationException)
+		{
+			return null;
+		}
+		catch (NotSupportedException)
+		{
+			return null;
 		}
 	}
 }
