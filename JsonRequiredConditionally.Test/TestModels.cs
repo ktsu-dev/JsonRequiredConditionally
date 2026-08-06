@@ -359,3 +359,138 @@ public sealed class NullSiblingConfig
 	[JsonRequiredIfSiblingIs(nameof(Kind), null)]
 	public string? Fallback { get; set; }
 }
+
+/// <summary>Polymorphic base whose derived type carries the decorated member.</summary>
+[JsonDerivedType(typeof(DecoratedShape), "decorated")]
+public class ShapeBase
+{
+	public string? Label { get; set; }
+}
+
+/// <summary>
+/// A derived type in a polymorphic hierarchy that also carries a decorated member. Claiming it
+/// breaks System.Text.Json's polymorphic metadata handling outright, on both read and write.
+/// </summary>
+public sealed class DecoratedShape : ShapeBase
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Polymorphic base whose derived type merely holds a decorated, non-polymorphic child.</summary>
+[JsonDerivedType(typeof(HolderShape), "holder")]
+public class HolderShapeBase
+{
+	public string? Label { get; set; }
+}
+
+/// <summary>Reaches a decorated type only through a plain, non-polymorphic member.</summary>
+public sealed class HolderShape : HolderShapeBase
+{
+	public SimpleConfig? Child { get; set; }
+}
+
+/// <summary>
+/// A type whose only decorated member is a plain public field, so it is invisible to a probe
+/// configured with <c>IncludeFields = false</c>.
+/// </summary>
+public sealed class FieldDecoratedConfig
+{
+	public Kind Kind { get; set; }
+
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture specifically exercises a plain public field as the decorated member, which requires an actual field.")]
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning;
+}
+
+/// <summary>A doubly-nested sequence holding a decorated element type.</summary>
+public sealed class GridConfig
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<List<SimpleConfig>> Grid { get; set; } = [];
+}
+
+/// <summary>A dictionary of sequences holding a decorated element type.</summary>
+public sealed class BucketConfig
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Dictionary<string, List<SimpleConfig>> Buckets { get; set; } = [];
+}
+
+/// <summary>
+/// A struct whose rule is armed by its own CLR default (<see cref="Kind.Basic"/> is zero), so a
+/// never-populated instance of it looks like a violation to any walk that descends into it.
+/// </summary>
+[SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Test fixture is never compared for equality; adding members would obscure the exact struct shape the fixture exists to reproduce.")]
+public struct ZeroArmedStruct
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Basic)]
+	public string? Name { get; set; }
+}
+
+/// <summary>
+/// A struct with no explicit parameterless constructor, exactly one public parameterized
+/// constructor, and a value-typed get-only property. System.Text.Json uses the implicit
+/// parameterless constructor for value types, so <see cref="Inner"/> is never populated.
+/// </summary>
+[SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Test fixture is never compared for equality; adding members would obscure the exact struct shape the fixture exists to reproduce.")]
+public struct ConstructorlessValueHolder(ZeroArmedStruct inner)
+{
+	public ZeroArmedStruct Inner { get; } = inner;
+
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <c>long</c> sibling matched by an <c>int</c> attribute argument.</summary>
+public sealed class LongSiblingConfig
+{
+	public long Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 1)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>A <c>short</c> sibling matched by an <c>int</c> attribute argument.</summary>
+public sealed class ShortSiblingConfig
+{
+	public short Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 1)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>A <c>byte</c> sibling matched by an <c>int</c> attribute argument.</summary>
+public sealed class ByteSiblingConfig
+{
+	public byte Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 1)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>An enum sibling matched by its member name written as a string.</summary>
+public sealed class EnumNameSiblingConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), "Advanced")]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A sibling whose type the attribute's value can never be converted to.</summary>
+public sealed class UnconvertibleSiblingConfig
+{
+	public Guid Id { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Id), 1)]
+	public string? Detail { get; set; }
+}

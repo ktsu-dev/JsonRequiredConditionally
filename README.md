@@ -133,6 +133,26 @@ nullable.
 **An unresolvable sibling name throws `InvalidOperationException`** the first time the type is used.
 A typo'd `nameof` target is a coding error, and failing loudly beats a rule that quietly never fires.
 
+**The attribute value is widened to the sibling's type before comparing.** An attribute argument can
+only be a compile-time constant, so it is routinely a different type from the sibling it is compared
+against. `[JsonRequiredIfSiblingIs(nameof(Count), 1)]` matches a `long`, `short`, `byte`, `uint` or
+`nint` sibling, and an enum sibling is matched by an `int`, by another enum with the same underlying
+value, or by the enum member's own name written as a string:
+
+```csharp
+[JsonRequiredIfSiblingIs(nameof(Kind), "Advanced")]  // matches Kind == Kind.Advanced
+```
+
+String siblings are still compared ordinally against string constants only; a number is never
+formatted into a string to make it match. **A pairing that could never match throws
+`InvalidOperationException`** at first use, for the same reason an unresolvable sibling name does.
+
+**Members System.Text.Json would not populate are not validated below.** A get-only property on a
+`struct` is one of these: System.Text.Json uses a value type's implicit parameterless constructor
+unless an explicit `[JsonConstructor]` says otherwise, so such a property keeps its default and the
+JSON that would have fed it is discarded. Nothing beneath it is validated, because validating it would
+report violations against a payload the serializer never applied.
+
 **All violations are reported together, with paths.** `JsonRequiredConditionallyException.MissingProperties`
 lists every property that was required but absent across the whole object graph, not just the first,
 and each entry is a path rather than a bare name:
@@ -168,9 +188,16 @@ for nested values — which it cannot, because converter resolution is cached pe
 self-referential type would go unvalidated below the outermost level.
 
 The walk takes its member model from `JsonTypeInfo.Properties` — System.Text.Json's own view of which
-members it populates — rather than from reflection. That is what keeps `[JsonIgnore]`, `IncludeFields`,
+members it populates — rather than from reflection. That is what keeps `[JsonIgnore]`,
 `[JsonInclude]` on non-public members, get-only properties and constructor binding all behaving the
 same way in validation as they do in deserialization.
+
+Whether a type is *claimed* is decided before any caller options exist, because a converter factory's
+`CanConvert` is given only a `Type`. That check therefore looks for decorated members with fields
+included, so a plain public field carrying the attribute claims its type — but the rules themselves are
+compiled against your real options, so with `IncludeFields = false` no rule is produced for a field and
+nothing is enforced on it, exactly as System.Text.Json would not populate it. With
+`IncludeFields = true` the rule exists and is enforced.
 
 A type is claimed if it *reaches* a decorated member, directly or through its member graph. Reaching
 rather than merely carrying is what lets violations be reported with paths rooted at the outermost
@@ -181,6 +208,28 @@ container.
 **Types behind a custom converter are not validated.** System.Text.Json exposes no property model for
 a type that has its own `JsonConverter`, so the walk cannot descend through one. Decorated types
 reachable only behind a custom converter are skipped.
+
+**Polymorphic hierarchies are not claimed, and therefore not validated.** A type carrying
+`[JsonPolymorphic]` or `[JsonDerivedType]`, or deriving from one that does, is skipped: System.Text.Json
+writes and reads the type discriminator around the derived type's converter and refuses outright when
+that converter is a custom one, so claiming such a type would break a working polymorphic model on
+both read and write merely by registering this library. Refusing to claim keeps it working; the cost is
+no enforcement inside the hierarchy.
+
+**`JsonObjectCreationHandling.Populate` is not supported and throws `NotSupportedException`.** The
+converter re-materializes each claimed subtree into a fresh instance, so the object System.Text.Json
+intended to populate would be discarded together with anything already in it. Either unregister the
+factory or stop using `Populate`.
+
+**`ReferenceHandler` is not supported and throws `NotSupportedException`.** The buffered JSON of a
+`$ref` node carries none of the referenced object's properties, so every armed requirement on it would
+be reported missing, and a `$values` array arrives as a JSON object the walk cannot descend into.
+Modelling `$id`/`$ref`/`$values` correctly is future work; until then the error is loud rather than
+wrong.
+
+**Not compatible with trimming or ahead-of-time compilation.** The factory is annotated with
+`[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`; constructing it in a trimmed or AOT-published
+application produces a build warning.
 
 **Register the factory in `Converters`, not via `[JsonConverter]`.** Applying it as a type-level
 attribute is not supported.

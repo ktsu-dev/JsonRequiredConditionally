@@ -7,6 +7,7 @@ namespace ktsu.JsonRequiredConditionally;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -23,6 +24,8 @@ internal static class RequirementRuleCompiler
 
 	private static readonly ConcurrentDictionary<Type, bool> EligibilityCache = new();
 
+	private static readonly ConcurrentDictionary<Type, bool> PolymorphismCache = new();
+
 	[SuppressMessage("Style", "IDE0028:Collection initialization can be simplified", Justification = "A collection expression does not compile for ConditionalWeakTable on netstandard2.0.")]
 	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, RequirementRule[]>> RuleCache = new();
 
@@ -35,6 +38,29 @@ internal static class RequirementRuleCompiler
 	/// consult at this point; see the remarks on <see cref="HasRules"/>.
 	/// </summary>
 	private static readonly JsonSerializerOptions StructuralProbeOptions = new() { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
+
+	/// <summary>
+	/// A second probe, identical to <see cref="StructuralProbeOptions"/> except that it includes
+	/// fields, used only by <see cref="HasDirectlyDecoratedMember"/>.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="JsonRequiredIfSiblingIsAttribute"/> declares <see cref="AttributeTargets.Field"/>,
+	/// so a type whose only decorated member is a plain public field must still be claimed --
+	/// otherwise a caller with <c>IncludeFields = true</c> silently gets no enforcement at all.
+	/// Claiming such a type is safe in both directions: when the caller does include fields, rule
+	/// compilation runs against their real options and produces the rule; when they do not, the
+	/// field is absent from <see cref="JsonTypeInfo.Properties"/>, so no rule is produced and the
+	/// only cost is buffering a type that turns out to have nothing to validate. There is no false
+	/// positive either way, because System.Text.Json does not populate the field in that
+	/// configuration either.
+	/// <para>
+	/// This deliberately does not extend to <see cref="EnumerateReachableMemberTypes"/>: reachability
+	/// must agree with the member model <see cref="GraphValidator"/>'s walk uses, and the walk sees
+	/// exactly the members the caller's own options expose.
+	/// </para>
+	/// </remarks>
+	private static readonly JsonSerializerOptions FieldAwareProbeOptions =
+		new() { TypeInfoResolver = new DefaultJsonTypeInfoResolver(), IncludeFields = true };
 
 	/// <summary>
 	/// Determines whether a type carries at least one decorated member, or transitively reaches a
@@ -147,7 +173,55 @@ internal static class RequirementRuleCompiler
 	}
 
 	private static bool IsExcludedFromEligibility(Type type) =>
-		type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || typeof(IEnumerable).IsAssignableFrom(type);
+		type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) ||
+		typeof(IEnumerable).IsAssignableFrom(type) || ParticipatesInPolymorphism(type);
+
+	/// <summary>
+	/// Determines whether a type takes part in a System.Text.Json polymorphic hierarchy, either by
+	/// carrying <c>[JsonPolymorphic]</c>/<c>[JsonDerivedType]</c> itself or by deriving from (or
+	/// implementing) something that does.
+	/// </summary>
+	/// <param name="type">The candidate type.</param>
+	/// <returns>True when the type participates in a polymorphic hierarchy.</returns>
+	/// <remarks>
+	/// Such a type must not be claimed. System.Text.Json writes and reads its type discriminator
+	/// itself, around the converter for the derived type, and refuses outright
+	/// (<see cref="NotSupportedException"/>: "The converter for derived type 'X' does not support
+	/// metadata writes or reads") when that converter is a custom one. Claiming the type would
+	/// therefore break a working polymorphic model on both read and write merely by registering this
+	/// library -- so eligibility refuses rather than throws, and the cost is that conditional
+	/// requirements are not enforced inside polymorphic hierarchies.
+	/// <para>
+	/// Both attributes are declared <c>Inherited = false</c>, so the base chain and the implemented
+	/// interfaces have to be walked explicitly rather than relying on <c>Type.IsDefined</c> with
+	/// inheritance.
+	/// </para>
+	/// </remarks>
+	private static bool ParticipatesInPolymorphism(Type type) =>
+		PolymorphismCache.GetOrAdd(type, static candidate =>
+		{
+			for (Type? current = candidate; current is not null; current = current.BaseType)
+			{
+				if (DeclaresPolymorphism(current))
+				{
+					return true;
+				}
+			}
+
+			foreach (Type contract in candidate.GetInterfaces())
+			{
+				if (DeclaresPolymorphism(contract))
+				{
+					return true;
+				}
+			}
+
+			return false;
+		});
+
+	private static bool DeclaresPolymorphism(Type type) =>
+		type.IsDefined(typeof(JsonPolymorphicAttribute), inherit: false) ||
+		type.IsDefined(typeof(JsonDerivedTypeAttribute), inherit: false);
 
 	/// <summary>
 	/// Compiles the requirement rules for a type against a specific set of serializer options.
@@ -187,7 +261,7 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
-			SiblingCondition[] conditions = BuildConditions(type, attributes);
+			SiblingCondition[] conditions = BuildConditions(type, member.Name, attributes);
 
 			// property.Name is System.Text.Json's own resolved JSON name: an explicit
 			// [JsonPropertyName] already wins over the naming policy, so there is no need to
@@ -219,15 +293,20 @@ internal static class RequirementRuleCompiler
 		return perType.GetOrAdd(type, t => Compile(t, options));
 	}
 
-	private static SiblingCondition[] BuildConditions(Type type, JsonRequiredIfSiblingIsAttribute[] attributes)
+	private static SiblingCondition[] BuildConditions(Type type, string memberName, JsonRequiredIfSiblingIsAttribute[] attributes)
 	{
 		List<SiblingCondition> conditions = [];
 
 		foreach (IGrouping<string, JsonRequiredIfSiblingIsAttribute> group in
 			attributes.GroupBy(attribute => attribute.SiblingName, StringComparer.Ordinal))
 		{
-			Func<object, object?> accessor = CreateAccessor(type, group.Key);
+			Func<object, object?> accessor = CreateAccessor(type, group.Key, out Type siblingType);
 			object?[] values = [.. group.Select(attribute => attribute.Value)];
+
+			foreach (object? value in values)
+			{
+				EnsureValueCanEverMatch(type, memberName, group.Key, siblingType, value);
+			}
 
 			conditions.Add(new SiblingCondition(group.Key, accessor, values));
 		}
@@ -235,17 +314,51 @@ internal static class RequirementRuleCompiler
 		return [.. conditions];
 	}
 
-	private static Func<object, object?> CreateAccessor(Type type, string siblingName)
+	/// <summary>
+	/// Rejects an attribute value that could never equal any value of the sibling's declared type.
+	/// </summary>
+	/// <param name="type">The type carrying the decorated member.</param>
+	/// <param name="memberName">The CLR name of the decorated member.</param>
+	/// <param name="siblingName">The CLR name of the sibling being compared.</param>
+	/// <param name="siblingType">The sibling's declared type.</param>
+	/// <param name="value">The constant supplied to the attribute.</param>
+	/// <exception cref="InvalidOperationException">The value could never match.</exception>
+	/// <remarks>
+	/// A rule whose condition can never hold is a coding error, and it fails in the dangerous
+	/// direction: the decorated member is simply never required, with nothing to notice. This mirrors
+	/// how an unresolvable sibling <em>name</em> already behaves.
+	/// </remarks>
+	private static void EnsureValueCanEverMatch(Type type, string memberName, string siblingName, Type siblingType, object? value)
+	{
+		if (ValueMatcher.CanEverMatch(siblingType, value))
+		{
+			return;
+		}
+
+		string described = value switch
+		{
+			null => "null",
+			string text => $"\"{text}\"",
+			_ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+		};
+
+		throw new InvalidOperationException(
+			$"[{nameof(JsonRequiredIfSiblingIsAttribute)}] on member '{memberName}' of type '{type.Name}' compares sibling '{siblingName}' against {described}, which can never equal a value of the sibling's type '{siblingType.Name}'.");
+	}
+
+	private static Func<object, object?> CreateAccessor(Type type, string siblingName, out Type siblingType)
 	{
 		PropertyInfo? property = FindProperty(type, siblingName);
 		if (property is not null && property.CanRead)
 		{
+			siblingType = property.PropertyType;
 			return instance => property.GetValue(instance);
 		}
 
 		FieldInfo? field = FindField(type, siblingName);
 		if (field is not null)
 		{
+			siblingType = field.FieldType;
 			return instance => field.GetValue(instance);
 		}
 
@@ -282,16 +395,22 @@ internal static class RequirementRuleCompiler
 	/// <summary>
 	/// Determines whether a type has a member directly decorated with
 	/// <see cref="JsonRequiredIfSiblingIsAttribute"/>, using System.Text.Json's own contract model
-	/// (via <see cref="StructuralProbeOptions"/>) to find the member set rather than re-deriving it
-	/// from raw reflection -- otherwise a decorated member System.Text.Json would not itself
-	/// populate (e.g. a non-public property without <c>[JsonInclude]</c>) would be found here but
-	/// never actually validated, or vice versa.
+	/// (via <see cref="FieldAwareProbeOptions"/>) to find the member set rather than re-deriving it
+	/// from raw reflection, so that <c>[JsonIgnore]</c>, <c>[JsonInclude]</c> on non-public members
+	/// and member hiding are all resolved the same way here as they are during the walk.
 	/// </summary>
 	/// <param name="type">The type to check.</param>
-	/// <returns>True when a member System.Text.Json would populate carries the attribute.</returns>
+	/// <returns>True when a member of the type's contract carries the attribute.</returns>
+	/// <remarks>
+	/// This deliberately does not filter by <see cref="IsPopulatedByDeserialization"/>. Whether the
+	/// decorated member is one System.Text.Json would itself populate is irrelevant to whether the
+	/// requirement holds: the rule is about the member's <em>presence in the payload</em>, not about
+	/// its materialized value, and <see cref="Compile"/> emits a rule regardless. Claiming a type on
+	/// the strength of such a member is therefore correct, not merely harmless.
+	/// </remarks>
 	private static bool HasDirectlyDecoratedMember(Type type)
 	{
-		JsonTypeInfo? typeInfo = TryGetTypeInfo(StructuralProbeOptions, type);
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(FieldAwareProbeOptions, type);
 
 		if (typeInfo is null)
 		{
@@ -358,12 +477,60 @@ internal static class RequirementRuleCompiler
 	}
 
 	/// <summary>
+	/// Unwraps a collection type all the way down to the element types it ultimately holds, so that
+	/// a nested collection such as <c>List&lt;List&lt;T&gt;&gt;</c>, <c>T[][]</c> or
+	/// <c>Dictionary&lt;string, List&lt;T&gt;&gt;</c> yields <c>T</c> rather than a collection type
+	/// that eligibility would then discard.
+	/// </summary>
+	/// <param name="type">The collection type to inspect.</param>
+	/// <returns>The non-collection element types reachable through the collection.</returns>
+	/// <remarks>
+	/// Unwrapping only one level left the holder of a nested collection unclaimed, because the
+	/// single unwrap produced another <see cref="IEnumerable"/>, which
+	/// <see cref="IsExcludedFromEligibility"/> rejects. Validation still happened -- the innermost
+	/// type is claimed independently -- but every path lost its prefix, reporting <c>Tuning</c>
+	/// where <c>Grid[0][0].Tuning</c> was meant, which defeats the whole point of claiming
+	/// containers transitively.
+	/// </remarks>
+	private static IEnumerable<Type> EnumerateElementTypes(Type type)
+	{
+		HashSet<Type> visited = [];
+		Queue<Type> pending = new();
+
+		pending.Enqueue(type);
+
+		while (pending.Count > 0)
+		{
+			// A collection type can reach itself (e.g. `class Tree : List<Tree>`), so unwrapping has
+			// to be cycle-protected exactly like the reachability walk above.
+			Type current = pending.Dequeue();
+
+			if (!visited.Add(current))
+			{
+				continue;
+			}
+
+			foreach (Type element in EnumerateImmediateElementTypes(current))
+			{
+				if (element != typeof(string) && typeof(IEnumerable).IsAssignableFrom(element))
+				{
+					pending.Enqueue(element);
+				}
+				else
+				{
+					yield return element;
+				}
+			}
+		}
+	}
+
+	/// <summary>
 	/// Determines the element type of a sequence, or the value type of a dictionary, from its
 	/// generic collection interfaces.
 	/// </summary>
 	/// <param name="type">The collection type to inspect.</param>
 	/// <returns>Zero or one type: the dictionary value type if the collection is a dictionary, otherwise the sequence element type.</returns>
-	private static IEnumerable<Type> EnumerateElementTypes(Type type)
+	private static IEnumerable<Type> EnumerateImmediateElementTypes(Type type)
 	{
 		foreach (Type candidateInterface in type.GetInterfaces())
 		{
@@ -488,15 +655,24 @@ internal static class RequirementRuleCompiler
 	}
 
 	/// <summary>
-	/// Approximates System.Text.Json's own deserialization constructor selection, in the same
-	/// precedence it uses: an explicit <c>[JsonConstructor]</c> wins outright; otherwise a public
-	/// parameterless constructor is preferred (and binds no properties at all, since it takes no
-	/// parameters); otherwise a single public parameterized constructor is used; otherwise the
-	/// choice is genuinely ambiguous between multiple candidate constructors and no constructor is
-	/// treated as authoritative for binding purposes.
+	/// Approximates System.Text.Json's own deserialization constructor selection: an explicit
+	/// <c>[JsonConstructor]</c> wins outright; a value type without one always uses its implicit
+	/// parameterless constructor; otherwise a public parameterless constructor is preferred (and
+	/// binds no properties at all, since it takes no parameters); otherwise a single public
+	/// parameterized constructor is used; otherwise the choice is genuinely ambiguous between
+	/// multiple candidate constructors and no constructor is treated as authoritative for binding
+	/// purposes.
 	/// </summary>
 	/// <param name="type">The type to select a deserialization constructor for.</param>
-	/// <returns>The constructor System.Text.Json would select, or null when the selection is ambiguous.</returns>
+	/// <returns>The constructor System.Text.Json would select, or null when no constructor binds properties.</returns>
+	/// <remarks>
+	/// This is an approximation, not a faithful reproduction. It is known to diverge from
+	/// System.Text.Json for a non-public constructor carrying <c>[JsonConstructor]</c>, which
+	/// System.Text.Json honours and <see cref="Type.GetConstructors()"/> never surfaces here. It is
+	/// deliberately conservative in both known divergences: returning null costs enforcement on a
+	/// get-only property, whereas returning a constructor System.Text.Json would not have used costs
+	/// a false positive against a member the payload never touched.
+	/// </remarks>
 	private static ConstructorInfo? SelectDeserializationConstructor(Type type)
 	{
 		ConstructorInfo[] publicConstructors = type.GetConstructors();
@@ -507,6 +683,17 @@ internal static class RequirementRuleCompiler
 		if (jsonConstructors.Length == 1)
 		{
 			return jsonConstructors[0];
+		}
+
+		if (type.IsValueType)
+		{
+			// A value type always has an implicit parameterless constructor, which
+			// Type.GetConstructors() does not report. System.Text.Json uses it for any value type
+			// without an explicit [JsonConstructor], regardless of how many public parameterized
+			// constructors the struct happens to declare -- so no property is constructor-bound, and
+			// treating a get-only property as populated here would validate a member the payload was
+			// discarded for.
+			return null;
 		}
 
 		ConstructorInfo? parameterless = Array.Find(publicConstructors, constructor => constructor.GetParameters().Length == 0);

@@ -76,8 +76,73 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
-	public void DoesNotMatchUnconvertibleValueAgainstEnum()
+	public void MatchesEnumMemberNameWrittenAsAString()
 	{
-		Assert.IsFalse(ValueMatcher.Matches(Kind.Advanced, "Advanced"));
+		Assert.IsTrue(ValueMatcher.Matches(Kind.Advanced, "Advanced"));
+		Assert.IsTrue(ValueMatcher.Matches("Advanced", Kind.Advanced));
+	}
+
+	[TestMethod]
+	public void DoesNotMatchEnumMemberNameOfADifferentMember()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(Kind.Basic, "Advanced"));
+	}
+
+	[TestMethod]
+	public void DoesNotMatchEnumMemberNameThatIsNotAMemberAtAll()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(Kind.Advanced, "NoSuchMember"));
+	}
+
+	[TestMethod]
+	public void DoesNotMatchEnumMemberNameOfTheWrongCase()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(Kind.Advanced, "advanced"));
+	}
+
+	[TestMethod]
+	public void WidensNarrowerIntegerAttributeArgumentsToTheSiblingType()
+	{
+		Assert.IsTrue(ValueMatcher.Matches(1L, 1));
+		Assert.IsTrue(ValueMatcher.Matches((short)1, 1));
+		Assert.IsTrue(ValueMatcher.Matches((byte)1, 1));
+		Assert.IsTrue(ValueMatcher.Matches(1u, 1));
+		Assert.IsTrue(ValueMatcher.Matches((nint)1, 1));
+		Assert.IsTrue(ValueMatcher.Matches((nuint)1, 1));
+	}
+
+	[TestMethod]
+	public void WidenedComparisonStillDistinguishesDifferentValues()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(2L, 1));
+		Assert.IsFalse(ValueMatcher.Matches((nint)2, 1));
+	}
+
+	[TestMethod]
+	public void DoesNotStringifyANumberToMatchAStringSibling()
+	{
+		Assert.IsFalse(ValueMatcher.Matches("1", 1));
+	}
+
+	[TestMethod]
+	public void CanEverMatchAcceptsWidenableAndEnumParseableValues()
+	{
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(long), 1));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(short), 1));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(nint), 1));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), "Advanced"));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), 1));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind?), Kind.Advanced));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(object), "anything"));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Guid), null));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(string), "text"));
+	}
+
+	[TestMethod]
+	public void CanEverMatchRejectsGenuinelyUnconvertibleValues()
+	{
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Guid), 1));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), "NoSuchMember"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(string), 1));
 	}
 }

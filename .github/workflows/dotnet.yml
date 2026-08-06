@@ -67,7 +67,17 @@ jobs:
       - name: Setup .NET SDK ${{ env.DOTNET_VERSION }}
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}.x
+          # The test project is multi-targeted to net7.0/net8.0/net9.0/net10.0 so each in-box
+          # System.Text.Json version the library ships against is genuinely exercised, and it
+          # deliberately clears the RuntimeFrameworkVersion that ktsu.Sdk pins to 10.0.0 so that
+          # every leg binds its own shared framework rather than all four running on .NET 10.
+          # That only runs if those runtimes are present, so they are installed here.
+          # RuntimeMatrixTests fails the build if a leg silently rolls forward onto a newer runtime.
+          dotnet-version: |
+            7.0.x
+            8.0.x
+            9.0.x
+            ${{ env.DOTNET_VERSION }}.x
           # setup-dotnet caches the NuGet global packages folder and keys it on a hash of these
           # files. The csproj files alone are not enough: this repository uses central package
           # management, so Directory.Packages.props is where versions actually live, and global.json

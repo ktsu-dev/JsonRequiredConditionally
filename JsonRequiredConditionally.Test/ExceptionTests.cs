@@ -52,6 +52,18 @@ public class ExceptionTests
 	}
 
 	[TestMethod]
+	public void MissingPropertiesIsNotAliasedToTheCallerSuppliedList()
+	{
+		List<string> supplied = ["tuning"];
+		JsonRequiredConditionallyException exception = new(supplied);
+
+		supplied.Add("host");
+		supplied[0] = "mutated";
+
+		CollectionAssert.AreEqual(new List<string> { "tuning" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
 	public void InnerExceptionConstructorPreservesBoth()
 	{
 		InvalidOperationException inner = new("inner");

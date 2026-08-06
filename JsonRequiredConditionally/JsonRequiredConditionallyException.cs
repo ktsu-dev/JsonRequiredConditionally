@@ -37,8 +37,14 @@ public sealed class JsonRequiredConditionallyException : JsonException
 	/// Initializes a new instance of the <see cref="JsonRequiredConditionallyException"/> class.
 	/// </summary>
 	/// <param name="missingProperties">The JSON names of the properties that were required but absent.</param>
+	/// <remarks>
+	/// The list is copied rather than stored: <see cref="IReadOnlyList{T}"/> is read-only only as
+	/// seen through this interface, so a caller passing a <see cref="List{T}"/> could otherwise keep
+	/// mutating the exception's own state after it was thrown, leaving
+	/// <see cref="MissingProperties"/> disagreeing with <see cref="Exception.Message"/>.
+	/// </remarks>
 	public JsonRequiredConditionallyException(IReadOnlyList<string> missingProperties)
-		: base(BuildMessage(missingProperties)) => MissingProperties = missingProperties;
+		: base(BuildMessage(missingProperties)) => MissingProperties = [.. missingProperties];
 
 	/// <summary>
 	/// Gets the JSON names of the properties that were required but absent from the payload.

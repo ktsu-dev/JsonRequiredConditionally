@@ -13,6 +13,9 @@ public class NestingTests
 	private static JsonSerializerOptions CreateOptions() =>
 		new() { Converters = { new JsonStringEnumConverter(), new JsonRequiredConditionallyConverterFactory() } };
 
+	private static JsonSerializerOptions CreatePlainOptions() =>
+		new() { Converters = { new JsonStringEnumConverter() } };
+
 	[TestMethod]
 	public void NestedObjectIsValidated()
 	{
@@ -174,9 +177,19 @@ public class NestingTests
 	[TestMethod]
 	public void JsonIncludedNonPublicMemberIsValidated()
 	{
+		const string json = """{"Public":{"Kind":"Basic"},"Secret":{"Kind":"Advanced"}}""";
+
+		if (!SerializerCapabilities.SupportsJsonIncludeOnNonPublicProperties)
+		{
+			AssertLibraryDoesNotMaskTheContractRejection(
+				() => JsonSerializer.Deserialize<IncludedNonPublicMemberConfig>(json, CreatePlainOptions()),
+				() => JsonSerializer.Deserialize<IncludedNonPublicMemberConfig>(json, CreateOptions()));
+
+			return;
+		}
+
 		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<IncludedNonPublicMemberConfig>(
-				"""{"Public":{"Kind":"Basic"},"Secret":{"Kind":"Advanced"}}""", CreateOptions()));
+			() => JsonSerializer.Deserialize<IncludedNonPublicMemberConfig>(json, CreateOptions()));
 	}
 
 	[TestMethod]
@@ -248,9 +261,41 @@ public class NestingTests
 		// System.Text.Json via [JsonInclude]. Rule compilation and eligibility must both see it via
 		// the same JsonTypeInfo-based member model the walk uses, not raw Public|Instance
 		// reflection, or this type would never be claimed and would deserialize with no validation.
+		const string json = """{"Kind":"Advanced"}""";
+
+		if (!SerializerCapabilities.SupportsJsonIncludeOnNonPublicProperties)
+		{
+			AssertLibraryDoesNotMaskTheContractRejection(
+				() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(json, CreatePlainOptions()),
+				() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(json, CreateOptions()));
+
+			return;
+		}
+
 		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(
-				"""{"Kind":"Advanced"}""", CreateOptions()));
+			() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(json, CreateOptions()));
+	}
+
+	/// <summary>
+	/// Asserts that registering this library changes nothing about a type System.Text.Json itself
+	/// refuses to build a contract for.
+	/// </summary>
+	/// <param name="withoutFactory">Deserialization through options that do not carry the factory.</param>
+	/// <param name="withFactory">The same deserialization through options that do.</param>
+	/// <remarks>
+	/// This is the assertion that carries the weight on System.Text.Json 7, where <c>[JsonInclude]</c>
+	/// on a non-public property is rejected while the contract is built -- before any converter is
+	/// consulted. The scenario the caller wanted to test does not exist on that framework, but the
+	/// library still owes it not to swallow, wrap or alter the serializer's own error, and that is
+	/// what is checked here.
+	/// </remarks>
+	private static void AssertLibraryDoesNotMaskTheContractRejection(Action withoutFactory, Action withFactory)
+	{
+		InvalidOperationException direct = Assert.ThrowsExactly<InvalidOperationException>(withoutFactory);
+		InvalidOperationException claimed = Assert.ThrowsExactly<InvalidOperationException>(withFactory);
+
+		Assert.AreEqual(direct.Message, claimed.Message);
+		StringAssert.Contains(claimed.Message, "JsonIncludeAttribute");
 	}
 
 	[TestMethod]
