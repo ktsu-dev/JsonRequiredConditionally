@@ -4,6 +4,8 @@
 
 namespace ktsu.JsonRequiredConditionally.Tests;
 
+using System.Diagnostics.CodeAnalysis;
+
 [TestClass]
 public class ValueMatcherTests
 {
@@ -14,12 +16,11 @@ public class ValueMatcherTests
 		Expert = 2,
 	}
 
-#pragma warning disable CA1008 // Enum values do not start with zero; test fixture does not require it
+	[SuppressMessage("Design", "CA1008:Enums should have zero value", Justification = "Test fixture intentionally has no zero-value member.")]
 	public enum Other
 	{
 		Advanced = 1,
 	}
-#pragma warning restore CA1008
 
 	[TestMethod]
 	public void MatchesIdenticalEnumValues()
