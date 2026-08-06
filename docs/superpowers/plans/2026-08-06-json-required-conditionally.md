@@ -2305,10 +2305,26 @@ nullable.
 **An unresolvable sibling name throws `InvalidOperationException`** the first time the type is used.
 A typo'd `nameof` target is a coding error, and failing loudly beats a rule that quietly never fires.
 
-**All violations are reported together.** `JsonRequiredConditionallyException.MissingProperties`
-lists every property that was required but absent, not just the first.
+**All violations are reported together, with paths.** `JsonRequiredConditionallyException.MissingProperties`
+lists every property that was required but absent across the whole object graph, not just the first,
+and each entry is a path rather than a bare name:
+
+```csharp
+// { "Kind": "Advanced", "Child": { "Kind": "Advanced" } }
+exception.MissingProperties   // ["Tuning", "Child.Tuning"]
+                              // arrays: "Children[1].Tuning"
+                              // dicts:  "Lookup.a.Tuning"
+```
 
 **Serialization is not validated.** `Write` is plain delegation.
+
+## Supported frameworks
+
+`net10.0`, `net9.0`, `net8.0`, `net7.0`, `netstandard2.0`, `netstandard2.1`.
+
+`net5.0` and `net6.0` are not supported. The graph walk needs `JsonSerializerOptions.GetTypeInfo`,
+introduced in System.Text.Json 7.0; those frameworks resolve System.Text.Json from their shared
+framework, where it predates the API. Both are also long out of support.
 
 ## How it works
 
@@ -2317,13 +2333,29 @@ metadata is built — before any JSON is read. A condition that depends on sibli
 evaluated at that point, because the object does not exist yet. So this library cannot extend the
 native required-check and instead supplies a converter.
 
-For each type carrying the attribute, the converter copies the `Utf8JsonReader` (a struct) to scan
-which property names are physically present, materializes the object through a cached clone of the
-options with itself excluded for that one type, then evaluates the compiled rules against the
-instance.
+The converter buffers its subtree, materializes it through a cached copy of your options with the
+factory removed, then walks the materialized object graph alongside the JSON, applying rules at every
+level. It validates the whole subtree itself rather than relying on System.Text.Json to re-enter it
+for nested values — which it cannot, because converter resolution is cached per type, so a
+self-referential type would go unvalidated below the outermost level.
 
-Types with no decorated members are never claimed by the factory and keep System.Text.Json's normal
-fast path, so the buffering cost is confined to types that actually use the feature.
+The walk takes its member model from `JsonTypeInfo.Properties` — System.Text.Json's own view of which
+members it populates — rather than from reflection. That is what keeps `[JsonIgnore]`, `IncludeFields`,
+`[JsonInclude]` on non-public members, get-only properties and constructor binding all behaving the
+same way in validation as they do in deserialization.
+
+A type is claimed if it *reaches* a decorated member, directly or through its member graph. Reaching
+rather than merely carrying is what lets violations be reported with paths rooted at the outermost
+container.
+
+## Limitations
+
+**Types behind a custom converter are not validated.** System.Text.Json exposes no property model for
+a type that has its own `JsonConverter`, so the walk cannot descend through one. Decorated types
+reachable only behind a custom converter are skipped.
+
+**Register the factory in `Converters`, not via `[JsonConverter]`.** Applying it as a type-level
+attribute is not supported.
 
 ## License
 
