@@ -11,6 +11,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
@@ -201,7 +202,14 @@ internal static class RequirementRuleCompiler
 	/// Gets the cached requirement rules for a type under a given set of options.
 	/// </summary>
 	/// <param name="type">The type to get rules for.</param>
-	/// <param name="options">The options whose naming policy resolves JSON names.</param>
+	/// <param name="options">
+	/// The options to resolve the type's member model through -- forwarded directly to
+	/// <see cref="Compile"/>, this is the only production route into it. Must be factory-free (or
+	/// otherwise not carrying this library's converter for <paramref name="type"/>): System.Text.Json
+	/// leaves <see cref="JsonTypeInfo.Properties"/> empty for a type with its own converter, so
+	/// passing factory-carrying options here silently yields no rules at all, for every type that
+	/// converter claims.
+	/// </param>
 	/// <returns>One rule per decorated member.</returns>
 	internal static RequirementRule[] GetRules(Type type, JsonSerializerOptions options)
 	{
@@ -429,12 +437,15 @@ internal static class RequirementRuleCompiler
 	/// <remarks>
 	/// A property with a setter is always populated (this covers records and <c>init</c>-only
 	/// properties too, both of which report a non-null <see cref="JsonPropertyInfo.Set"/>). A
-	/// get-only property is populated only when a constructor parameter binds to it, detected here
-	/// by an ordinal-insensitive name match against the declaring type's constructor parameters.
-	/// This is an approximation of System.Text.Json's own constructor-parameter binding, not a
-	/// faithful reproduction of it -- the precise answer, <c>JsonPropertyInfo.AssociatedParameter</c>,
-	/// is only available on net9.0+, and this library also targets net7.0, net8.0, netstandard2.0
-	/// and netstandard2.1.
+	/// get-only property is populated only when a parameter of the constructor System.Text.Json
+	/// would actually select (see <see cref="SelectDeserializationConstructor"/>) binds to it,
+	/// detected here by an ordinal-insensitive name match against that one constructor's parameters
+	/// -- not every public constructor the type happens to declare, which would treat a get-only
+	/// property as populated merely because some unrelated convenience overload happens to have a
+	/// same-named parameter. This is an approximation of System.Text.Json's own
+	/// constructor-parameter binding, not a faithful reproduction of it -- the precise answer,
+	/// <c>JsonPropertyInfo.AssociatedParameter</c>, is only available on net9.0+, and this library
+	/// also targets net7.0, net8.0, netstandard2.0 and netstandard2.1.
 	/// </remarks>
 	internal static bool IsPopulatedByDeserialization(JsonPropertyInfo property)
 	{
@@ -458,17 +469,55 @@ internal static class RequirementRuleCompiler
 			return false;
 		}
 
-		foreach (ConstructorInfo constructor in member.DeclaringType.GetConstructors())
+		ConstructorInfo? constructor = SelectDeserializationConstructor(member.DeclaringType);
+
+		if (constructor is null)
 		{
-			foreach (ParameterInfo parameter in constructor.GetParameters())
+			return false;
+		}
+
+		foreach (ParameterInfo parameter in constructor.GetParameters())
+		{
+			if (string.Equals(parameter.Name, member.Name, StringComparison.OrdinalIgnoreCase))
 			{
-				if (string.Equals(parameter.Name, member.Name, StringComparison.OrdinalIgnoreCase))
-				{
-					return true;
-				}
+				return true;
 			}
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Approximates System.Text.Json's own deserialization constructor selection, in the same
+	/// precedence it uses: an explicit <c>[JsonConstructor]</c> wins outright; otherwise a public
+	/// parameterless constructor is preferred (and binds no properties at all, since it takes no
+	/// parameters); otherwise a single public parameterized constructor is used; otherwise the
+	/// choice is genuinely ambiguous between multiple candidate constructors and no constructor is
+	/// treated as authoritative for binding purposes.
+	/// </summary>
+	/// <param name="type">The type to select a deserialization constructor for.</param>
+	/// <returns>The constructor System.Text.Json would select, or null when the selection is ambiguous.</returns>
+	private static ConstructorInfo? SelectDeserializationConstructor(Type type)
+	{
+		ConstructorInfo[] publicConstructors = type.GetConstructors();
+
+		ConstructorInfo[] jsonConstructors =
+			[.. publicConstructors.Where(constructor => constructor.IsDefined(typeof(JsonConstructorAttribute), inherit: true))];
+
+		if (jsonConstructors.Length == 1)
+		{
+			return jsonConstructors[0];
+		}
+
+		ConstructorInfo? parameterless = Array.Find(publicConstructors, constructor => constructor.GetParameters().Length == 0);
+
+		if (parameterless is not null)
+		{
+			return parameterless;
+		}
+
+		ConstructorInfo[] parameterized = [.. publicConstructors.Where(constructor => constructor.GetParameters().Length > 0)];
+
+		return parameterized.Length == 1 ? parameterized[0] : null;
 	}
 }

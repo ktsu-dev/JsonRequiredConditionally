@@ -252,4 +252,31 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<InternalDecoratedMemberConfig>(
 				"""{"Kind":"Advanced"}""", CreateOptions()));
 	}
+
+	[TestMethod]
+	public void JsonConstructorPreferredOverConvenienceConstructorLeavesPropertyUntouched()
+	{
+		// A naive "does any public constructor have a same-named parameter" check would wrongly
+		// treat Child as constructor-bound because of the convenience overload -- even though
+		// System.Text.Json actually uses the [JsonConstructor]-marked parameterless constructor,
+		// which never touches Child at all. Kind=Basic keeps the top-level Tuning requirement out
+		// of the way, isolating the assertion to Child's own (false) requirement.
+		JsonConstructorPreferredHolder? holder = JsonSerializer.Deserialize<JsonConstructorPreferredHolder>(
+			"""{"Kind":"Basic","Child":{"Kind":"Basic"}}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual(Kind.Advanced, holder.Child.Kind);
+	}
+
+	[TestMethod]
+	public void ParameterlessConstructorPreferredOverConvenienceConstructorLeavesPropertyUntouched()
+	{
+		// Same shape as above, but relying on System.Text.Json's default preference for a public
+		// parameterless constructor rather than an explicit [JsonConstructor].
+		ParameterlessPreferredHolder? holder = JsonSerializer.Deserialize<ParameterlessPreferredHolder>(
+			"""{"Kind":"Basic","Child":{"Kind":"Basic"}}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual(Kind.Advanced, holder.Child.Kind);
+	}
 }

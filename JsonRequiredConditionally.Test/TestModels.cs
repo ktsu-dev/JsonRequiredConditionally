@@ -280,3 +280,47 @@ public sealed class InternalDecoratedMemberConfig
 	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
 	internal string? Tuning { get; set; }
 }
+
+/// <summary>
+/// Decoy shape: an explicit <c>[JsonConstructor]</c> on the parameterless constructor must win
+/// over a convenience overload that merely happens to have a same-named parameter as the get-only
+/// <see cref="Child"/> property -- System.Text.Json never touches <see cref="Child"/>, so its
+/// initializer value must survive deserialization untouched.
+/// </summary>
+public sealed class JsonConstructorPreferredHolder
+{
+	[JsonConstructor]
+	public JsonConstructorPreferredHolder()
+	{
+	}
+
+	public JsonConstructorPreferredHolder(SimpleConfig child) => Child = child;
+
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public SimpleConfig Child { get; } = new() { Kind = Kind.Advanced };
+}
+
+/// <summary>
+/// Decoy shape: a public parameterless constructor is preferred by System.Text.Json over a
+/// convenience overload even without <c>[JsonConstructor]</c>, for the same reason as
+/// <see cref="JsonConstructorPreferredHolder"/>.
+/// </summary>
+public sealed class ParameterlessPreferredHolder
+{
+	public ParameterlessPreferredHolder()
+	{
+	}
+
+	public ParameterlessPreferredHolder(SimpleConfig child) => Child = child;
+
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public SimpleConfig Child { get; } = new() { Kind = Kind.Advanced };
+}
