@@ -324,3 +324,38 @@ public sealed class ParameterlessPreferredHolder
 
 	public SimpleConfig Child { get; } = new() { Kind = Kind.Advanced };
 }
+
+/// <summary>Constructor-parameterized, to prove evaluation happens after materialization.</summary>
+public sealed record RecordConfig(
+	Kind Kind,
+	[property: JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)] string? Tuning);
+
+/// <summary>Two independently violated members, to prove violations aggregate.</summary>
+public sealed class MultiViolationConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Host { get; set; }
+}
+
+/// <summary>The zero enum value is a meaningful case, so an absent sibling matches it.</summary>
+public sealed class ZeroValueConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Basic)]
+	public string? Name { get; set; }
+}
+
+/// <summary>A null-valued sibling condition.</summary>
+public sealed class NullSiblingConfig
+{
+	public string? Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), null)]
+	public string? Fallback { get; set; }
+}
