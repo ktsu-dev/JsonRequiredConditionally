@@ -22,10 +22,10 @@ dotnet build --configuration Release
 dotnet test
 
 # Run a specific test by name filter
-dotnet test --filter "FullyQualifiedName~ConverterTests.ThrowsWhenRequiredPropertyIsAbsent"
+dotnet test --filter "FullyQualifiedName~ConverterTests.AbsentRequiredPropertyThrows"
 
 # Run tests in a specific test class
-dotnet test --filter "FullyQualifiedName~GraphValidatorTests"
+dotnet test --filter "FullyQualifiedName~NestingTests"
 
 # Create NuGet package
 dotnet pack --configuration Release --output ./staging

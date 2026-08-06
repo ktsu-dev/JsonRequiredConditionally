@@ -62,6 +62,8 @@ Decorate the conditionally-required member, then register the factory once:
 
 ```csharp
 using ktsu.JsonRequiredConditionally;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 public sealed class Config
 {
@@ -73,7 +75,13 @@ public sealed class Config
 
 JsonSerializerOptions options = new()
 {
-	Converters = { new JsonRequiredConditionallyConverterFactory() },
+	Converters =
+	{
+		// Needed only because this example writes Kind as a string ("Advanced"); it is not a
+		// requirement of JsonRequiredConditionally itself, which works with any converter setup.
+		new JsonStringEnumConverter(),
+		new JsonRequiredConditionallyConverterFactory(),
+	},
 };
 
 // throws JsonRequiredConditionallyException
