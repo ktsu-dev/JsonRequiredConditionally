@@ -1366,22 +1366,73 @@ git commit -m "[patch] Add JSON property presence scanning"
 
 ---
 
-### Task 6: Converter and factory, flat objects
+### Task 6: Converter, factory, and re-entrancy
 
 **Files:**
 - Create: `JsonRequiredConditionally/JsonRequiredConditionallyConverter.cs`
 - Create: `JsonRequiredConditionally/JsonRequiredConditionallyConverterFactory.cs`
+- Create: `JsonRequiredConditionally/InnerOptionsCache.cs`
+- Modify: `JsonRequiredConditionally.Test/TestModels.cs`
 - Create: `JsonRequiredConditionally.Test/ConverterTests.cs`
+- Create: `JsonRequiredConditionally.Test/NestingTests.cs`
 
 **Interfaces:**
 - Consumes: `RequirementRuleCompiler.HasRules`/`.Compile` (Task 4), `PresenceScanner.ScanPropertyNames` (Task 5), `JsonRequiredConditionallyException` (Task 3).
 - Produces:
   - `public sealed class JsonRequiredConditionallyConverterFactory : JsonConverterFactory` with a public parameterless constructor.
   - `internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>` with constructor `(JsonSerializerOptions options, JsonRequiredConditionallyConverterFactory factory)`.
+  - `internal sealed class ExcludingFactory : JsonConverterFactory` with constructor `(Type excludedType, JsonRequiredConditionallyConverterFactory root, JsonSerializerOptions rootOptions)` and properties `ExcludedType`, `RootOptions`. The `root` parameter stays a primary-constructor capture — it needs no property.
+  - `internal static class InnerOptionsCache` with `internal static JsonSerializerOptions Get(JsonSerializerOptions rootOptions, Type excludedType, JsonRequiredConditionallyConverterFactory factory)` and `internal static JsonSerializerOptions FindRoot(JsonSerializerOptions options)`.
 
-This task handles flat objects only. The inner options simply strips the factory. Task 8 replaces that with per-type exclusion so nesting works — do not attempt nesting here.
+The converter must materialize `T` without re-entering itself. The naive fix — strip the factory from the inner options — would silently disable validation for every *nested* decorated type, so it is wrong and must not be written. Instead the inner options excludes **only the type currently being converted**, and each frame **resets** the exclusion to its own type rather than accumulating. That keeps cyclic graphs (`T → U → T`) validated at every level, and terminates because recursion is bounded by JSON nesting depth, which `JsonSerializerOptions.MaxDepth` already caps.
 
-- [ ] **Step 1: Write the failing test**
+Caching matters for the same reason: without it every nesting level allocates a fresh `JsonSerializerOptions`, and a fresh options object starts with an empty metadata cache. Keying by `(root options, excluded type)` bounds allocation to one clone per decorated type per root options.
+
+- [ ] **Step 1: Add the nested and cyclic test models**
+
+Append to `JsonRequiredConditionally.Test/TestModels.cs`:
+
+```csharp
+/// <summary>Holds a decorated child, to prove nested validation runs.</summary>
+public sealed class OuterConfig
+{
+	public string? Label { get; set; }
+
+	public SimpleConfig? Child { get; set; }
+}
+
+/// <summary>Holds decorated children in collections.</summary>
+public sealed class CollectionConfig
+{
+	public List<SimpleConfig> Items { get; set; } = [];
+
+	public Dictionary<string, SimpleConfig> Lookup { get; set; } = [];
+}
+
+/// <summary>Mutually recursive with <see cref="NodeB"/>.</summary>
+public sealed class NodeA
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public NodeB? Next { get; set; }
+}
+
+/// <summary>Mutually recursive with <see cref="NodeA"/>.</summary>
+public sealed class NodeB
+{
+	public Mode Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), Mode.Remote)]
+	public string? Endpoint { get; set; }
+
+	public NodeA? Next { get; set; }
+}
+```
+
+- [ ] **Step 2: Write the failing converter test**
 
 `JsonRequiredConditionally.Test/ConverterTests.cs`:
 
@@ -1494,12 +1545,186 @@ public class ConverterTests
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Write the failing nesting test**
 
-Run: `dotnet test --filter "FullyQualifiedName~ConverterTests"`
+`JsonRequiredConditionally.Test/NestingTests.cs`:
+
+```csharp
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
+namespace ktsu.JsonRequiredConditionally.Tests;
+
+using System.Text.Json;
+
+[TestClass]
+public class NestingTests
+{
+	private static JsonSerializerOptions CreateOptions() =>
+		new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };
+
+	[TestMethod]
+	public void NestedObjectIsValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<OuterConfig>(
+				"""{"Label":"x","Child":{"Kind":"Advanced"}}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void ValidNestedObjectDeserializes()
+	{
+		OuterConfig? outer = JsonSerializer.Deserialize<OuterConfig>(
+			"""{"Label":"x","Child":{"Kind":"Advanced","Tuning":"fast"}}""", CreateOptions());
+
+		Assert.IsNotNull(outer);
+		Assert.AreEqual("fast", outer.Child!.Tuning);
+	}
+
+	[TestMethod]
+	public void ListElementsAreValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CollectionConfig>(
+				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}],"Lookup":{}}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void DictionaryValuesAreValidated()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CollectionConfig>(
+				"""{"Items":[],"Lookup":{"a":{"Kind":"Advanced"}}}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void CyclicTypeGraphValidatesAtEveryLevel()
+	{
+		string json = """
+			{"Kind":"Basic","Next":{"Mode":"Local","Next":{"Kind":"Advanced"}}}
+			""";
+
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NodeA>(json, CreateOptions()));
+	}
+
+	[TestMethod]
+	public void DeeplyNestedValidGraphDeserializes()
+	{
+		string json = """
+			{"Kind":"Advanced","Tuning":"a","Next":{"Mode":"Remote","Endpoint":"b","Next":{"Kind":"Basic"}}}
+			""";
+
+		NodeA? node = JsonSerializer.Deserialize<NodeA>(json, CreateOptions());
+
+		Assert.IsNotNull(node);
+		Assert.AreEqual("b", node.Next!.Endpoint);
+	}
+
+	[TestMethod]
+	public void InnerOptionsAreCachedPerRootAndExcludedType()
+	{
+		JsonSerializerOptions root = CreateOptions();
+		JsonRequiredConditionallyConverterFactory factory = new();
+
+		JsonSerializerOptions first = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
+		JsonSerializerOptions second = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
+		JsonSerializerOptions other = InnerOptionsCache.Get(root, typeof(OrConfig), factory);
+
+		Assert.AreSame(first, second);
+		Assert.AreNotSame(first, other);
+	}
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they fail**
+
+Run: `dotnet test --filter "FullyQualifiedName~ConverterTests|FullyQualifiedName~NestingTests"`
 Expected: FAIL — compilation error CS0246, `JsonRequiredConditionallyConverterFactory` could not be found.
 
-- [ ] **Step 3: Write the converter**
+- [ ] **Step 5: Write the inner options cache**
+
+`JsonRequiredConditionally/InnerOptionsCache.cs`:
+
+```csharp
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
+namespace ktsu.JsonRequiredConditionally;
+
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+/// <summary>
+/// Caches the per-type options clones used to materialize objects without converter re-entrancy.
+/// </summary>
+internal static class InnerOptionsCache
+{
+	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, JsonSerializerOptions>> Cache = new();
+
+	/// <summary>
+	/// Gets the options used to materialize <paramref name="excludedType"/> without re-entering its own converter.
+	/// </summary>
+	/// <param name="rootOptions">The user's original options, shared by every frame.</param>
+	/// <param name="excludedType">The type whose converter must be bypassed.</param>
+	/// <param name="factory">The root factory, used for every other type.</param>
+	/// <returns>A cached options instance.</returns>
+	internal static JsonSerializerOptions Get(
+		JsonSerializerOptions rootOptions,
+		Type excludedType,
+		JsonRequiredConditionallyConverterFactory factory)
+	{
+		ConcurrentDictionary<Type, JsonSerializerOptions> perType =
+			Cache.GetValue(rootOptions, static _ => new ConcurrentDictionary<Type, JsonSerializerOptions>());
+
+		return perType.GetOrAdd(excludedType, type => Build(rootOptions, type, factory));
+	}
+
+	/// <summary>
+	/// Finds the root options for a frame by looking for a marker factory in the current options.
+	/// </summary>
+	/// <param name="options">The options a converter was created with.</param>
+	/// <returns>The user's original options.</returns>
+	internal static JsonSerializerOptions FindRoot(JsonSerializerOptions options)
+	{
+		foreach (JsonConverter converter in options.Converters)
+		{
+			if (converter is ExcludingFactory excluding)
+			{
+				return excluding.RootOptions;
+			}
+		}
+
+		return options;
+	}
+
+	private static JsonSerializerOptions Build(
+		JsonSerializerOptions rootOptions,
+		Type excludedType,
+		JsonRequiredConditionallyConverterFactory factory)
+	{
+		JsonSerializerOptions inner = new(rootOptions);
+
+		for (int i = inner.Converters.Count - 1; i >= 0; i--)
+		{
+			if (inner.Converters[i] is JsonRequiredConditionallyConverterFactory or ExcludingFactory)
+			{
+				inner.Converters.RemoveAt(i);
+			}
+		}
+
+		inner.Converters.Add(new ExcludingFactory(excludedType, factory, rootOptions));
+
+		return inner;
+	}
+}
+```
+
+- [ ] **Step 6: Write the converter**
 
 `JsonRequiredConditionally/JsonRequiredConditionallyConverter.cs`:
 
@@ -1535,7 +1760,7 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 		rules = RequirementRuleCompiler.Compile(typeof(T), options);
 		nameComparer = options.PropertyNameCaseInsensitive ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-		innerOptions = CreateInnerOptions(options);
+		innerOptions = InnerOptionsCache.Get(InnerOptionsCache.FindRoot(options), typeof(T), factory);
 	}
 
 	/// <inheritdoc/>
@@ -1561,21 +1786,6 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 	/// <inheritdoc/>
 	public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
 		JsonSerializer.Serialize(writer, value, innerOptions);
-
-	private static JsonSerializerOptions CreateInnerOptions(JsonSerializerOptions options)
-	{
-		JsonSerializerOptions inner = new(options);
-
-		for (int i = inner.Converters.Count - 1; i >= 0; i--)
-		{
-			if (inner.Converters[i] is JsonRequiredConditionallyConverterFactory)
-			{
-				inner.Converters.RemoveAt(i);
-			}
-		}
-
-		return inner;
-	}
 
 	private void Validate(T value, HashSet<string> present)
 	{
@@ -1605,7 +1815,7 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 }
 ```
 
-- [ ] **Step 4: Write the factory**
+- [ ] **Step 7: Write the factory and the excluding factory**
 
 `JsonRequiredConditionally/JsonRequiredConditionallyConverterFactory.cs`:
 
@@ -1673,21 +1883,53 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+Append `ExcludingFactory` to the same file:
 
-Run: `dotnet test --filter "FullyQualifiedName~ConverterTests"`
-Expected: PASS, 9 tests.
+```csharp
+/// <summary>
+/// Delegates to the root factory for every type except one, breaking converter re-entrancy for
+/// the type currently being materialized while leaving every other type validated.
+/// </summary>
+internal sealed class ExcludingFactory(
+	Type excludedType,
+	JsonRequiredConditionallyConverterFactory root,
+	JsonSerializerOptions rootOptions) : JsonConverterFactory
+{
+	/// <summary>
+	/// Gets the type this factory refuses to convert.
+	/// </summary>
+	internal Type ExcludedType { get; } = excludedType;
 
-- [ ] **Step 6: Run the full suite**
+	/// <summary>
+	/// Gets the user's original options, propagated so every frame shares one cache root.
+	/// </summary>
+	internal JsonSerializerOptions RootOptions { get; } = rootOptions;
+
+	/// <inheritdoc/>
+	public override bool CanConvert(Type typeToConvert) =>
+		typeToConvert != ExcludedType && root.CanConvert(typeToConvert);
+
+	/// <inheritdoc/>
+	public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
+		root.CreateConverter(typeToConvert, options);
+}
+```
+
+- [ ] **Step 8: Run the tests to verify they pass**
+
+Run: `dotnet test --filter "FullyQualifiedName~ConverterTests|FullyQualifiedName~NestingTests"`
+Expected: PASS, 16 tests.
+
+- [ ] **Step 9: Run the full suite**
 
 Run: `dotnet test`
 Expected: PASS, all tests from Tasks 1-6.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -A
-git commit -m "[patch] Add converter and factory for flat objects"
+git commit -m "[patch] Add converter, factory, and nested graph validation"
 ```
 
 ---
@@ -1811,324 +2053,14 @@ git commit -m "[patch] Cover naming policy and case sensitivity"
 
 ---
 
-### Task 8: Nesting, re-entrancy, and inner-options caching
-
-**Files:**
-- Create: `JsonRequiredConditionally/InnerOptionsCache.cs`
-- Modify: `JsonRequiredConditionally/JsonRequiredConditionallyConverterFactory.cs` (add `ExcludingFactory`)
-- Modify: `JsonRequiredConditionally/JsonRequiredConditionallyConverter.cs` (replace `CreateInnerOptions`)
-- Modify: `JsonRequiredConditionally.Test/TestModels.cs` (add nested and cyclic models)
-- Create: `JsonRequiredConditionally.Test/NestingTests.cs`
-
-**Interfaces:**
-- Consumes: everything from Task 6.
-- Produces:
-  - `internal sealed class ExcludingFactory : JsonConverterFactory` with constructor `(Type excludedType, JsonRequiredConditionallyConverterFactory root, JsonSerializerOptions rootOptions)` and properties `ExcludedType`, `RootOptions`. The `root` parameter stays a primary-constructor capture — it needs no property.
-  - `internal static class InnerOptionsCache` with `internal static JsonSerializerOptions Get(JsonSerializerOptions rootOptions, Type excludedType, JsonRequiredConditionallyConverterFactory factory)`.
-
-Why the change: Task 6's inner options strip the factory entirely, so a nested decorated type is never validated. Excluding only the current type fixes that. Each frame **resets** the exclusion to its own type rather than accumulating, which keeps cyclic graphs (`T → U → T`) validated at every level. Recursion terminates because it is bounded by JSON nesting depth, which `JsonSerializerOptions.MaxDepth` already caps.
-
-Caching matters: without it, every nesting level allocates a fresh `JsonSerializerOptions`, and a fresh options object has an empty metadata cache. Keying by `(root options, excluded type)` bounds allocation to one clone per decorated type per root options.
-
-- [ ] **Step 1: Add the nested and cyclic test models**
-
-Append to `JsonRequiredConditionally.Test/TestModels.cs`:
-
-```csharp
-/// <summary>Holds a decorated child, to prove nested validation runs.</summary>
-public sealed class OuterConfig
-{
-	public string? Label { get; set; }
-
-	public SimpleConfig? Child { get; set; }
-}
-
-/// <summary>Holds decorated children in collections.</summary>
-public sealed class CollectionConfig
-{
-	public List<SimpleConfig> Items { get; set; } = [];
-
-	public Dictionary<string, SimpleConfig> Lookup { get; set; } = [];
-}
-
-/// <summary>Mutually recursive with <see cref="NodeB"/>.</summary>
-public sealed class NodeA
-{
-	public Kind Kind { get; set; }
-
-	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
-	public string? Tuning { get; set; }
-
-	public NodeB? Next { get; set; }
-}
-
-/// <summary>Mutually recursive with <see cref="NodeA"/>.</summary>
-public sealed class NodeB
-{
-	public Mode Mode { get; set; }
-
-	[JsonRequiredIfSiblingIs(nameof(Mode), Mode.Remote)]
-	public string? Endpoint { get; set; }
-
-	public NodeA? Next { get; set; }
-}
-```
-
-- [ ] **Step 2: Write the failing test**
-
-`JsonRequiredConditionally.Test/NestingTests.cs`:
-
-```csharp
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
-
-namespace ktsu.JsonRequiredConditionally.Tests;
-
-using System.Text.Json;
-
-[TestClass]
-public class NestingTests
-{
-	private static JsonSerializerOptions CreateOptions() =>
-		new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };
-
-	[TestMethod]
-	public void NestedObjectIsValidated()
-	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<OuterConfig>(
-				"""{"Label":"x","Child":{"Kind":"Advanced"}}""", CreateOptions()));
-	}
-
-	[TestMethod]
-	public void ValidNestedObjectDeserializes()
-	{
-		OuterConfig? outer = JsonSerializer.Deserialize<OuterConfig>(
-			"""{"Label":"x","Child":{"Kind":"Advanced","Tuning":"fast"}}""", CreateOptions());
-
-		Assert.IsNotNull(outer);
-		Assert.AreEqual("fast", outer.Child!.Tuning);
-	}
-
-	[TestMethod]
-	public void ListElementsAreValidated()
-	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<CollectionConfig>(
-				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}],"Lookup":{}}""", CreateOptions()));
-	}
-
-	[TestMethod]
-	public void DictionaryValuesAreValidated()
-	{
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<CollectionConfig>(
-				"""{"Items":[],"Lookup":{"a":{"Kind":"Advanced"}}}""", CreateOptions()));
-	}
-
-	[TestMethod]
-	public void CyclicTypeGraphValidatesAtEveryLevel()
-	{
-		string json = """
-			{"Kind":"Basic","Next":{"Mode":"Local","Next":{"Kind":"Advanced"}}}
-			""";
-
-		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
-			() => JsonSerializer.Deserialize<NodeA>(json, CreateOptions()));
-	}
-
-	[TestMethod]
-	public void DeeplyNestedValidGraphDeserializes()
-	{
-		string json = """
-			{"Kind":"Advanced","Tuning":"a","Next":{"Mode":"Remote","Endpoint":"b","Next":{"Kind":"Basic"}}}
-			""";
-
-		NodeA? node = JsonSerializer.Deserialize<NodeA>(json, CreateOptions());
-
-		Assert.IsNotNull(node);
-		Assert.AreEqual("b", node.Next!.Endpoint);
-	}
-
-	[TestMethod]
-	public void InnerOptionsAreCachedPerRootAndExcludedType()
-	{
-		JsonSerializerOptions root = CreateOptions();
-		JsonRequiredConditionallyConverterFactory factory = new();
-
-		JsonSerializerOptions first = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
-		JsonSerializerOptions second = InnerOptionsCache.Get(root, typeof(SimpleConfig), factory);
-		JsonSerializerOptions other = InnerOptionsCache.Get(root, typeof(OrConfig), factory);
-
-		Assert.AreSame(first, second);
-		Assert.AreNotSame(first, other);
-	}
-}
-```
-
-- [ ] **Step 3: Run the test to verify it fails**
-
-Run: `dotnet test --filter "FullyQualifiedName~NestingTests"`
-Expected: FAIL — `NestedObjectIsValidated` does not throw (the nested type is not validated), and the caching test does not compile because `InnerOptionsCache` does not exist.
-
-- [ ] **Step 4: Write the inner options cache**
-
-`JsonRequiredConditionally/InnerOptionsCache.cs`:
-
-```csharp
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
-
-namespace ktsu.JsonRequiredConditionally;
-
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
-using System.Text.Json;
-
-/// <summary>
-/// Caches the per-type options clones used to materialize objects without converter re-entrancy.
-/// </summary>
-internal static class InnerOptionsCache
-{
-	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, JsonSerializerOptions>> Cache = new();
-
-	/// <summary>
-	/// Gets the options used to materialize <paramref name="excludedType"/> without re-entering its own converter.
-	/// </summary>
-	/// <param name="rootOptions">The user's original options, shared by every frame.</param>
-	/// <param name="excludedType">The type whose converter must be bypassed.</param>
-	/// <param name="factory">The root factory, used for every other type.</param>
-	/// <returns>A cached options instance.</returns>
-	internal static JsonSerializerOptions Get(
-		JsonSerializerOptions rootOptions,
-		Type excludedType,
-		JsonRequiredConditionallyConverterFactory factory)
-	{
-		ConcurrentDictionary<Type, JsonSerializerOptions> perType =
-			Cache.GetValue(rootOptions, static _ => new ConcurrentDictionary<Type, JsonSerializerOptions>());
-
-		return perType.GetOrAdd(excludedType, type => Build(rootOptions, type, factory));
-	}
-
-	/// <summary>
-	/// Finds the root options for a frame by looking for a marker factory in the current options.
-	/// </summary>
-	/// <param name="options">The options a converter was created with.</param>
-	/// <returns>The user's original options.</returns>
-	internal static JsonSerializerOptions FindRoot(JsonSerializerOptions options)
-	{
-		foreach (JsonConverter converter in options.Converters)
-		{
-			if (converter is ExcludingFactory excluding)
-			{
-				return excluding.RootOptions;
-			}
-		}
-
-		return options;
-	}
-
-	private static JsonSerializerOptions Build(
-		JsonSerializerOptions rootOptions,
-		Type excludedType,
-		JsonRequiredConditionallyConverterFactory factory)
-	{
-		JsonSerializerOptions inner = new(rootOptions);
-
-		for (int i = inner.Converters.Count - 1; i >= 0; i--)
-		{
-			if (inner.Converters[i] is JsonRequiredConditionallyConverterFactory or ExcludingFactory)
-			{
-				inner.Converters.RemoveAt(i);
-			}
-		}
-
-		inner.Converters.Add(new ExcludingFactory(excludedType, factory, rootOptions));
-
-		return inner;
-	}
-}
-```
-
-Note the `using System.Text.Json.Serialization;` is needed for `JsonConverter` — add it alongside the others in alphabetical order.
-
-- [ ] **Step 5: Add `ExcludingFactory` to the factory file**
-
-Append to `JsonRequiredConditionally/JsonRequiredConditionallyConverterFactory.cs`:
-
-```csharp
-/// <summary>
-/// Delegates to the root factory for every type except one, breaking converter re-entrancy for
-/// the type currently being materialized while leaving every other type validated.
-/// </summary>
-internal sealed class ExcludingFactory(
-	Type excludedType,
-	JsonRequiredConditionallyConverterFactory root,
-	JsonSerializerOptions rootOptions) : JsonConverterFactory
-{
-	/// <summary>
-	/// Gets the type this factory refuses to convert.
-	/// </summary>
-	internal Type ExcludedType { get; } = excludedType;
-
-	/// <summary>
-	/// Gets the user's original options, propagated so every frame shares one cache root.
-	/// </summary>
-	internal JsonSerializerOptions RootOptions { get; } = rootOptions;
-
-	/// <inheritdoc/>
-	public override bool CanConvert(Type typeToConvert) =>
-		typeToConvert != ExcludedType && root.CanConvert(typeToConvert);
-
-	/// <inheritdoc/>
-	public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
-		root.CreateConverter(typeToConvert, options);
-}
-```
-
-- [ ] **Step 6: Replace `CreateInnerOptions` in the converter**
-
-In `JsonRequiredConditionally/JsonRequiredConditionallyConverter.cs`, delete the private `CreateInnerOptions` method entirely and change the constructor's last line from:
-
-```csharp
-		innerOptions = CreateInnerOptions(options);
-```
-
-to:
-
-```csharp
-		innerOptions = InnerOptionsCache.Get(InnerOptionsCache.FindRoot(options), typeof(T), factory);
-```
-
-- [ ] **Step 7: Run the tests to verify they pass**
-
-Run: `dotnet test --filter "FullyQualifiedName~NestingTests"`
-Expected: PASS, 7 tests.
-
-- [ ] **Step 8: Run the full suite for regressions**
-
-Run: `dotnet test`
-Expected: PASS, all tests from Tasks 1-8.
-
-- [ ] **Step 9: Commit**
-
-```bash
-git add -A
-git commit -m "[patch] Validate nested and cyclic object graphs"
-```
-
----
-
-### Task 9: Materialization semantics
+### Task 8: Materialization semantics
 
 **Files:**
 - Modify: `JsonRequiredConditionally.Test/TestModels.cs` (add record and multi-violation models)
 - Create: `JsonRequiredConditionally.Test/SemanticsTests.cs`
 
 **Interfaces:**
-- Consumes: everything from Task 8. No production changes are expected. These tests pin behavior the spec commits to, so that a future refactor cannot silently change it.
+- Consumes: everything from Task 6. No production changes are expected. These tests pin behavior the spec commits to, so that a future refactor cannot silently change it.
 
 - [ ] **Step 1: Add the remaining test models**
 
@@ -2267,7 +2199,7 @@ git commit -m "[patch] Pin record, aggregation, and absent-sibling semantics"
 
 ---
 
-### Task 10: README and release readiness
+### Task 9: README and release readiness
 
 **Files:**
 - Create: `README.md`
@@ -2418,7 +2350,7 @@ git commit -m "[patch] Add README and repo documentation"
 Before declaring the work complete, confirm each with actual command output:
 
 - [ ] `dotnet build --configuration Release` produces zero warnings across all eight target frameworks.
-- [ ] `dotnet test` passes with every test from Tasks 1-9 green.
+- [ ] `dotnet test` passes with every test from Tasks 1-8 green.
 - [ ] `dotnet pack --configuration Release --output ./staging` produces a `.nupkg`.
 - [ ] The public API is exactly three types: `JsonRequiredIfSiblingIsAttribute`, `JsonRequiredConditionallyConverterFactory`, `JsonRequiredConditionallyException`.
 - [ ] No `[SuppressMessage]` attributes were added without a written justification.
