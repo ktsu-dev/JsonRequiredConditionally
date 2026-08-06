@@ -168,34 +168,53 @@ cost is confined to types that actually use the feature.
 
 ### Read
 
-The converter has two obligations: materialize `T` without re-entering itself, and know which
-properties were physically present. Both come out of one pass over the reader.
-
-1. **Scan.** `Utf8JsonReader` is a struct, so it is copied and walked forward, collecting the object's
-   immediate property names into a `HashSet<string>` and `Skip()`ping nested values. STJ guarantees the
-   complete value is buffered before a custom converter is invoked, so both the copy and the `Skip` are
-   safe. No `JsonDocument` is allocated and the subtree is not materialized twice.
-2. **Materialize.** Deserialize from the untouched original reader using a cached inner
-   `JsonSerializerOptions`.
-3. **Evaluate.** Apply the type's compiled rules against the materialized instance and the presence set.
+1. **Buffer.** `JsonDocument.ParseValue` captures the converter's whole subtree.
+2. **Materialize.** Deserialize the buffered element through a cached clone of the options with this
+   library's factory removed outright.
+3. **Evaluate.** Walk the materialized graph alongside the JSON, applying rules at every level.
 4. **Throw** a single aggregated exception if any rule is violated.
 
 `Read` returns `default` for a `JsonTokenType.Null` token without evaluating rules.
 
-### Re-entrancy
+### Why the converter validates the whole subtree itself
 
-The inner options is a clone of the incoming options with the factory replaced by one that excludes
-**only the type currently being converted**. Each frame resets the exclusion to its own type rather
-than accumulating.
+An earlier version of this design had the converter validate only its own object and rely on STJ
+re-entering it for nested types, using an inner options that excluded **only the type currently being
+converted**. That is wrong, and the reason is worth recording.
 
-This matters for correctness. Removing the factory outright would silently disable validation for every
-nested type. Accumulating exclusions would disable it for cyclic type graphs — in `T → U → T`, the
-inner `T` would go unchecked. Resetting per frame keeps every level validated, and terminates because
-recursion is bounded by the JSON's nesting depth, which STJ already caps via `MaxDepth`.
+STJ caches converter resolution per type *within* an options instance. Excluding `T` from the inner
+options therefore excludes **every** nested occurrence of `T` in that materialization pass, not just
+the instance being unwrapped. A directly self-referential decorated type — `TreeNode` with a
+`TreeNode? Child` — was validated only at the outermost level, silently. `T → U → T` worked only
+because `U` got its own cache entry that re-admitted `T`, which is why the original tests missed it.
 
-Inner options are cached per converter instance. STJ caches converters per `(type, options)` pair, so
-this yields one clone per pair rather than one per deserialization — important, because a fresh
-`JsonSerializerOptions` carries no metadata cache and would be severely slow.
+No arrangement of `JsonSerializerOptions` fixes this: converter selection is per-type, not
+per-instance, so "deserialize *this* object without the converter but nested same-type objects with
+it" is inexpressible. Hence the converter owns the whole subtree.
+
+Termination is guaranteed because the walk is driven by the JSON element tree, which is finite — not
+by the object graph, which may be cyclic.
+
+The cost is real and accepted: a `JsonDocument` per decorated subtree, and the walk must mirror STJ's
+name mapping and collection traversal rather than delegating to it.
+
+The factory-free clone is cached per options instance, because a fresh `JsonSerializerOptions` carries
+no metadata cache and would be severely slow to rebuild per deserialization.
+
+### Graph traversal
+
+The walk pairs each JSON element with the object STJ materialized from it:
+
+- **Objects** recurse member by member, mapping CLR members to JSON properties by resolved JSON name.
+  Members carrying `[JsonIgnore]` are skipped, and members are de-duplicated by resolved JSON name so
+  a `new`-hidden base member cannot cause the same element to be descended twice.
+- **Arrays** zip the JSON items against the materialized sequence in order.
+- **Dictionaries** match JSON property names against `entry.Key.ToString()`, so non-string-keyed
+  dictionaries descend correctly and no key cast is attempted.
+- **Scalars** terminate the descent.
+
+Indexed properties are never read — `PropertyInfo.GetValue` throws on them, and they are reachable in
+ordinary input because STJ materializes `object`-typed members as `JsonElement`.
 
 ### Name resolution
 
@@ -217,9 +236,13 @@ attributes grouped by sibling name. Evaluation is a lookup and a comparison per 
 
 ### Errors
 
-All violations for an object accumulate into one `JsonRequiredConditionallyException` listing every
-missing property, rather than failing on the first. `MissingProperties` exposes the list for callers
-that need to act on it programmatically.
+All violations across the whole subtree accumulate into one `JsonRequiredConditionallyException`,
+rather than failing on the first.
+
+`MissingProperties` holds **paths**, not bare property names: `Tuning` at the root, `Child.Tuning`
+nested, `Children[1].Tuning` through an array, `Lookup.a.Tuning` through a dictionary. Bare names
+became ambiguous once violations from every depth landed in one list — a two-level failure of the same
+property read as `'Tuning', 'Tuning'` with no way to tell the nodes apart.
 
 ### Write
 
@@ -236,9 +259,16 @@ MSTest, semantic asserts, per ktsu convention.
   `PropertyNameCaseInsensitive`.
 - Enum normalization: boxed `int` argument matches the equivalent enum sibling.
 - `null` attribute argument matches a null sibling.
-- Nested objects are validated, including as elements of collections and dictionary values. The
-  collection itself is never converted; validation reaches elements because STJ routes each element
-  type through the factory independently.
+- Nested objects are validated, including as elements of collections and dictionary values.
+- Directly self-referential types (`TreeNode` with a `TreeNode? Child`) validate at every depth,
+  including through a collection of themselves. This is the case the original re-entrancy design
+  silently skipped.
+- Violations at different depths aggregate into one exception, each carrying its own path.
+- Non-string-keyed dictionaries descend correctly.
+- A decorated type with an `object`-typed member deserializes without throwing when that member holds
+  a JSON object.
+- A `[JsonIgnore]`d member whose resolved name collides with a real JSON property is not descended into.
+- Nested validation still fires under `PropertyNameCaseInsensitive` with differently-cased JSON.
 - An unresolvable `SiblingName` throws `InvalidOperationException` on first use of the type.
 - An absent sibling reads as its CLR default, and a zero-valued enum condition matches it.
 - Records and constructor-parameterized types.
