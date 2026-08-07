@@ -1,7 +1,6 @@
-## v1.1.1 (patch)
+## v1.1.2 (patch)
 
-Changes since v1.1.0:
+Changes since v1.1.1:
 
-- Update copyright years and adjust output directory in configuration files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add .mailmap file for author name normalization ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
 
