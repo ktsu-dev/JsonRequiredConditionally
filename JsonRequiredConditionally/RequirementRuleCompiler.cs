@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.JsonRequiredConditionally;
 
@@ -33,7 +31,7 @@ internal static class RequirementRuleCompiler
 	/// A reflection-based options instance used only to ask System.Text.Json's own contract model
 	/// which members of a type it would actually serialize, for the purpose of deciding whether a
 	/// type transitively reaches a decorated member. This is deliberately not derived from any
-	/// caller's options -- <see cref="System.Text.Json.Serialization.JsonConverterFactory"/>'s
+	/// caller's options -- <see cref="JsonConverterFactory"/>'s
 	/// <c>CanConvert</c> is only ever given a <see cref="Type"/>, so no caller options exist yet to
 	/// consult at this point; see the remarks on <see cref="HasRules"/>.
 	/// </summary>
@@ -75,7 +73,7 @@ internal static class RequirementRuleCompiler
 	/// original options instead of being reached by this type's own graph walk — each losing all
 	/// path context above itself.
 	/// <para>
-	/// <see cref="System.Text.Json.Serialization.JsonConverterFactory"/>'s <c>CanConvert</c> receives
+	/// <see cref="JsonConverterFactory"/>'s <c>CanConvert</c> receives
 	/// only a <see cref="Type"/>, never the caller's <see cref="JsonSerializerOptions"/>, so this
 	/// reachability check cannot honour caller-specific settings such as <c>IncludeFields</c> or a
 	/// custom naming policy. It uses <see cref="StructuralProbeOptions"/> -- a fixed,

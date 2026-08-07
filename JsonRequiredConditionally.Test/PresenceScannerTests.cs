@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.JsonRequiredConditionally.Tests;
 
@@ -19,7 +17,7 @@ public class PresenceScannerTests
 	[TestMethod]
 	public void CollectsTopLevelPropertyNames()
 	{
-		HashSet<string> names = Scan("""{"a":1,"b":"x","c":null}""");
+		HashSet<string> names = Scan(/*lang=json,strict*/ """{"a":1,"b":"x","c":null}""");
 
 		Assert.HasCount(3, names);
 		Assert.IsTrue(names.Contains("a"));
@@ -30,7 +28,7 @@ public class PresenceScannerTests
 	[TestMethod]
 	public void RecordsExplicitNullAsPresent()
 	{
-		HashSet<string> names = Scan("""{"a":null}""");
+		HashSet<string> names = Scan(/*lang=json,strict*/ """{"a":null}""");
 
 		Assert.IsTrue(names.Contains("a"));
 	}
@@ -38,7 +36,7 @@ public class PresenceScannerTests
 	[TestMethod]
 	public void IgnoresNestedPropertyNames()
 	{
-		HashSet<string> names = Scan("""{"outer":{"inner":1},"sibling":2}""");
+		HashSet<string> names = Scan(/*lang=json,strict*/ """{"outer":{"inner":1},"sibling":2}""");
 
 		Assert.HasCount(2, names);
 		Assert.IsTrue(names.Contains("outer"));
@@ -49,7 +47,7 @@ public class PresenceScannerTests
 	[TestMethod]
 	public void IgnoresPropertyNamesInsideArrays()
 	{
-		HashSet<string> names = Scan("""{"items":[{"inner":1},{"inner":2}],"count":2}""");
+		HashSet<string> names = Scan(/*lang=json,strict*/ """{"items":[{"inner":1},{"inner":2}],"count":2}""");
 
 		Assert.HasCount(2, names);
 		Assert.IsFalse(names.Contains("inner"));
@@ -70,7 +68,7 @@ public class PresenceScannerTests
 	[TestMethod]
 	public void HonoursCaseInsensitiveComparer()
 	{
-		HashSet<string> names = Scan("""{"Tuning":1}""", StringComparer.OrdinalIgnoreCase);
+		HashSet<string> names = Scan(/*lang=json,strict*/ """{"Tuning":1}""", StringComparer.OrdinalIgnoreCase);
 
 		Assert.IsTrue(names.Contains("tuning"));
 	}
