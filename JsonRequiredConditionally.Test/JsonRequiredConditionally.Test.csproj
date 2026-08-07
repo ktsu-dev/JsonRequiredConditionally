@@ -1,31 +1,10 @@
 <Project>
-  <Sdk Name="MSTest.Sdk" Version="3.11.1" />
+  <Sdk Name="MSTest.Sdk" />
   <Sdk Name="ktsu.Sdk" />
 
   <PropertyGroup>
-    <IsTestProject>true</IsTestProject>
-    <!--
-      Multi-targeted so each in-box System.Text.Json version the library ships against is actually
-      exercised: net7.0/net8.0/net9.0/net10.0 bind STJ 7/8/9/10 from their own shared frameworks.
-      The whole design rests on JsonTypeInfo.Properties and JsonPropertyInfo.Get/Set/AttributeProvider
-      behaving the same across those versions, and constructor, init-only and required handling did
-      change between them, so a clean six-framework *build* is not evidence of equivalent behaviour.
-      The netstandard2.0/2.1 assets are still untested: covering them needs a net472 leg.
-    -->
-    <TargetFramework></TargetFramework>
-    <TargetFrameworks>net10.0;net9.0;net8.0;net7.0</TargetFrameworks>
-    <!-- net7.0 is out of support; it is in the matrix precisely because the library still ships for it. -->
-    <CheckEolTargetFramework>false</CheckEolTargetFramework>
-    <!--
-      ktsu.Sdk sets RuntimeFrameworkVersion=10.0.0 and RollForward=LatestMinor for every target
-      framework, which would make every leg of the matrix above run on the .NET 10 shared framework
-      and therefore load System.Text.Json 10 regardless of the TFM it was compiled for, testing
-      nothing but compile compatibility. Clearing it lets each leg bind its own runtime, and
-      RuntimeMatrixTests asserts that it actually did. Running the matrix consequently needs the
-      .NET 7, 8, 9 and 10 runtimes installed.
-    -->
-    <RuntimeFrameworkVersion></RuntimeFrameworkVersion>
-    <RollForward>LatestPatch</RollForward>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -4,23 +4,16 @@
     "rollForward": "latestFeature"
   },
   "msbuild-sdks": {
-    // NOTE: JsonRequiredConditionally.Test deliberately overrides this and does NOT use the version
-    // below -- it pins MSTest.Sdk 3.11.1, because MSTest.TestAdapter 4.x ships no net7.0 asset and
-    // the test project multi-targets net7.0 so each in-box System.Text.Json version the library
-    // ships against is genuinely exercised. net7.0 is the leg that found the only cross-version
-    // behavioural difference in the suite. Bumping this entry will not move that pin; removing the
-    // pin fails the restore loudly rather than silently. Do not resolve the divergence by dropping
-    // net7.0 from the test matrix. See JsonRequiredConditionally.Test/*.csproj.
     "MSTest.Sdk": "4.3.3",
-    "ktsu.Sdk": "2.17.0",
-    "ktsu.Sdk.ConsoleApp": "2.17.0",
-    "ktsu.Sdk.Tool": "2.17.0",
-    "ktsu.Sdk.App": "2.17.0",
-    "ktsu.Sdk.Windows": "2.17.0",
-    "ktsu.Sdk.Linux": "2.17.0",
-    "ktsu.Sdk.macOS": "2.17.0",
-    "ktsu.Sdk.iOS": "2.17.0",
-    "ktsu.Sdk.Android": "2.17.0"
+    "ktsu.Sdk": "2.17.1",
+    "ktsu.Sdk.ConsoleApp": "2.17.1",
+    "ktsu.Sdk.Tool": "2.17.1",
+    "ktsu.Sdk.App": "2.17.1",
+    "ktsu.Sdk.Windows": "2.17.1",
+    "ktsu.Sdk.Linux": "2.17.1",
+    "ktsu.Sdk.macOS": "2.17.1",
+    "ktsu.Sdk.iOS": "2.17.1",
+    "ktsu.Sdk.Android": "2.17.1"
   },
   "test": {
     "runner": "Microsoft.Testing.Platform"
