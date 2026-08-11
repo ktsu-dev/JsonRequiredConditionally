@@ -1,7 +1,6 @@
-## v1.1.2 (patch)
+## v1.1.3 (patch)
 
-Changes since v1.1.1:
+Changes since v1.1.2:
 
-- Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Update ktsu.Sdk to 2.21.1 ([@matt-edmondson](https://github.com/matt-edmondson))
 
