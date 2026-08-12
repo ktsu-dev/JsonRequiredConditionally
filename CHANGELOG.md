@@ -1,6 +1,9 @@
-## v1.1.3
+## v1.1.4 (patch)
 
-No significant changes detected since v1.1.3.
+Changes since v1.1.3:
+
+- Bump the system group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v1.1.3 (patch)
 
