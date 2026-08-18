@@ -1,6 +1,6 @@
-## v1.1.5 (patch)
+## v1.1.6 (patch)
 
-Changes since v1.1.4:
+Changes since v1.1.5:
 
-- Stop Update SDKs failing when there is nothing to update ([@matt-edmondson](https://github.com/matt-edmondson))
+- Restore the missing package icon and suppress cross-TFM APICompat noise ([@matt-edmondson](https://github.com/matt-edmondson))
 
