@@ -8,7 +8,7 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/ktsu.JsonRequiredConditionally?label=Downloads&logo=nuget)](https://nuget.org/packages/ktsu.JsonRequiredConditionally)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/JsonRequiredConditionally?label=Commits&logo=github)](https://github.com/ktsu-dev/JsonRequiredConditionally/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/JsonRequiredConditionally?label=Contributors&logo=github)](https://github.com/ktsu-dev/JsonRequiredConditionally/graphs/contributors)
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/JsonRequiredConditionally/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/JsonRequiredConditionally/actions)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/JsonRequiredConditionally/dotnet.yml?branch=main&label=Build&logo=github)](https://github.com/ktsu-dev/JsonRequiredConditionally/actions)
 
 ## Introduction
 
