@@ -21,7 +21,8 @@
 - **No conditional compilation.** No `#if NET8_0_OR_GREATER`. The library targets `net10.0;net9.0;net8.0;net7.0;netstandard2.0;netstandard2.1` from one source, so every API used must exist on all six. `JsonElement.ValueEquals`, `JsonElement.GetArrayLength` and `JsonElement.EnumerateObject` all do.
 - **No global warning suppressions.** Targeted `[SuppressMessage]` with a justification only.
 - Tests use **semantic asserts** (`Assert.IsEmpty`, `Assert.HasCount`, `Assert.ThrowsExactly`, `CollectionAssert.AreEqual`), never `Assert.IsTrue`/`Assert.IsFalse` on a computed boolean where a semantic assert exists.
-- Tests multi-target `net10.0;net9.0;net8.0;net7.0`. A single `dotnet test --filter` run therefore executes each test four times, once per framework. All four legs must pass.
+- **The test project targets `net10.0` only** on this branch (`<TargetFramework>net10.0</TargetFramework>`, `<TargetFrameworks></TargetFrameworks>`). The four-framework matrix described in `CLAUDE.md` is not configured here, and `RuntimeMatrixTests` cannot detect its absence. Do not try to restore it: that is separate work. One test leg, and it must pass.
+- The **library** still multi-targets all six frameworks, so `dotnet build` remains the check that every API used exists on netstandard2.0 and netstandard2.1.
 - **Every existing test must pass unmodified.** If a task requires editing an existing test's expectations, stop: that means `MissingProperties` semantics moved, which is a design failure rather than a test to update.
 - The feature is a **`[minor]`** version bump. The marker goes on the final commit (Task 8).
 
@@ -248,7 +249,7 @@ internal static class EmptinessInspector
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test --filter "FullyQualifiedName~EmptinessInspectorTests"`
-Expected: PASS, 13 tests per framework across four frameworks.
+Expected: PASS, 13 new tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1342,12 +1343,12 @@ In `Walk`, immediately after the conditional-rule loop and still inside the `if 
 - [ ] **Step 6: Run test to verify it passes**
 
 Run: `dotnet test --filter "FullyQualifiedName~NotEmptyTests"`
-Expected: PASS, 18 tests per framework.
+Expected: PASS, 18 new tests.
 
 - [ ] **Step 7: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, every test, every framework. No existing test may be edited to achieve this.
+Expected: PASS, every test. No existing test may be edited to achieve this.
 
 - [ ] **Step 8: Commit**
 
@@ -1569,7 +1570,7 @@ Append to `JsonRequiredConditionally.Test/SemanticsTests.cs`, inside the existin
 - [ ] **Step 5: Run the whole suite**
 
 Run: `dotnet test`
-Expected: PASS, every test, every framework.
+Expected: PASS, every test.
 
 - [ ] **Step 6: Commit**
 
@@ -1615,13 +1616,13 @@ Three edits:
 
 Widen the description from conditional presence to declarative requirement and emptiness validation over the System.Text.Json contract model. Add tags for non-empty validation.
 
-- [ ] **Step 4: Verify the full matrix**
+- [ ] **Step 4: Verify the build and tests**
 
 Run: `dotnet build --configuration Release`
-Expected: succeeds for all six target frameworks with no warnings, since warnings are errors.
+Expected: succeeds for all six library target frameworks with no warnings, since warnings are errors. This is the check that every API used exists on netstandard2.0 and netstandard2.1, which no test leg covers.
 
 Run: `dotnet test`
-Expected: PASS, every test, all four test frameworks.
+Expected: PASS, every test.
 
 - [ ] **Step 5: Verify with `ktsubuild`**
 
