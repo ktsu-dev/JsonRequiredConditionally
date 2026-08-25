@@ -217,8 +217,8 @@ A decorated member is satisfied when its JSON property is present and its value 
 | `"x"`, `[1]`, `{"a":1}` | satisfied |
 | number, `true`, `false` | satisfied, and always will be |
 
-**Whitespace is not empty.** A string is empty when its length is zero, which is System.Text.Json's own
-definition and the one this library uses. That diverges deliberately from
+**Whitespace is not empty.** This follows the framework's own definition, under which a string is empty
+when its length is zero. That diverges deliberately from
 `System.ComponentModel.DataAnnotations.RequiredAttribute`, which treats a whitespace-only string as
 absent. `"   "` satisfies `[JsonRequiredAndNotEmpty]` and would not satisfy `[Required]`.
 
@@ -241,25 +241,27 @@ There are two narrow reasons someone might still pair them, and neither is a def
 - **`[JsonRequired]` sets `JsonPropertyInfo.IsRequired`**, which schema and OpenAPI generators read.
   `[JsonRequiredAndNotEmpty]` is invisible to them.
 
-### Why not `[MinLength(1)]`
+### `[MinLength(1)]` as an alternative
 
 `System.ComponentModel.DataAnnotations.MinLengthAttribute` looks like the obvious alternative. It
 applies to collections and strings and expresses emptiness directly. Three blockers were measured, not
-assumed, against a model shaped like how consuming applications in this ecosystem actually declare
-their types:
+assumed:
 
 1. **Non-public members are invisible to it.** `Validator.TryValidateObject` reads properties through
-   `TypeDescriptor`, which yields public properties only. `internal` and `private` members carrying
-   `[JsonInclude]`, common in this ecosystem, produced no validation results at all.
+   `TypeDescriptor`, which yields public properties only. Internal or private members carrying
+   `[JsonInclude]`, a common pattern for non-public DTOs, produced no validation results at all.
 2. **It does not recurse.** A holder containing an invalid child was reported valid. Reaching the
    child means hand-writing the walk and the path reporting `GraphValidator` already does.
 3. **`[Required]` is non-null, not non-empty, for anything that is not a `System.String`.** A record
    type wrapping `""` passed, because `RequiredAttribute` only special-cases `System.String` itself,
-   and semantic string types in this ecosystem are routinely records.
+   and semantic string types are routinely records.
 
 None of this makes DataAnnotations a bad choice in general. It simply cannot see what this library
 sees: non-public members behind `[JsonInclude]`, nested graphs, and values whose emptiness is only
 answerable from the JSON payload itself.
+
+`EmptyProperties` is where present-but-empty violations land. `MissingProperties` is where absent ones
+land, including for members decorated with `[JsonRequiredAndNotEmpty]`.
 
 ## Supported Frameworks
 

@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**ktsu.JsonRequiredConditionally** is a System.Text.Json library providing a single attribute,
-`[JsonRequiredIfSiblingIs(nameof(Sibling), value)]`, that makes a property or field required during
-deserialization only when a sibling member holds a particular value. It targets multiple frameworks:
+**ktsu.JsonRequiredConditionally** is a System.Text.Json library providing two attributes:
+`[JsonRequiredIfSiblingIs(nameof(Sibling), value)]`, which makes a property or field required during
+deserialization only when a sibling member holds a particular value, and `[JsonRequiredAndNotEmpty]`,
+which makes a property or field required and non-empty unconditionally. It targets multiple frameworks:
 net10.0, net9.0, net8.0, net7.0, netstandard2.0, and netstandard2.1.
 
 ## Build and Test Commands
