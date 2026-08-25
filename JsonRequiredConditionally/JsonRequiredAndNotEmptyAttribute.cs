@@ -13,7 +13,7 @@ namespace ktsu.JsonRequiredConditionally;
 /// </para>
 /// <list type="bullet">
 /// <item><description>The property being absent is a violation, reported in <see cref="JsonRequiredConditionallyException.MissingProperties"/>.</description></item>
-/// <item><description><c>null</c>, <c>""</c>, <c>[]</c> and <c>{}</c> are violations, reported in JsonRequiredConditionallyException.EmptyProperties.</description></item>
+/// <item><description><c>null</c>, <c>""</c>, <c>[]</c> and <c>{}</c> are violations, reported in <see cref="JsonRequiredConditionallyException.EmptyProperties"/>.</description></item>
 /// <item><description>A whitespace-only string is <em>not</em> empty. A string is empty when its length is zero.</description></item>
 /// <item><description>A number or boolean can never be empty, so decorating such a member produces a rule that is always satisfied.</description></item>
 /// </list>
