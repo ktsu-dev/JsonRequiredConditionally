@@ -111,7 +111,7 @@ AND-ing those would be unsatisfiable, since `Kind` cannot be both `Advanced` and
 
 ## Semantics
 
-**Presence satisfies the requirement, not non-nullness — for `[JsonRequiredIfSiblingIs]`.** A required
+**Presence satisfies the requirement, not non-nullness, for `[JsonRequiredIfSiblingIs]`.** A required
 property that is physically present passes even when its value is `null`. This mirrors how
 `[JsonRequired]` itself behaves.
 
