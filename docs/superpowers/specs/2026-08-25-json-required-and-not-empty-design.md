@@ -87,7 +87,7 @@ A decorated member is satisfied when its JSON property is present and its value 
 | `{}` | violation, reported as **empty** |
 | `"   "` | satisfied |
 | `"x"`, `[1]`, `{"a":1}` | satisfied |
-| number, `true`, `false` | never empty, rejected at compile time |
+| number, `true`, `false` | satisfied, and always will be |
 
 Whitespace-only strings are **not** empty. This follows Microsoft's own definition: a string is empty
 if it is explicitly assigned `""` or `String.Empty`, and an empty string has a `Length` of 0. It
@@ -100,6 +100,24 @@ required and not empty is not satisfied by an explicit null.
 
 An absent member is reported as missing rather than empty, so `MissingProperties` keeps meaning
 exactly what it means today.
+
+### Members that can never be empty
+
+Decorating a member whose JSON form is always a number or a boolean produces a rule that is always
+satisfied. The attribute is pointless there, but it is not an error and nothing rejects it.
+
+An earlier draft threw `InvalidOperationException` at rule-compilation time for that case, mirroring
+`EnsureValueCanEverMatch`. It was cut deliberately. The mechanism needed to do it safely, probing
+`options.GetConverter(type)` and testing the returned converter's declaring assembly to avoid
+false-positives on custom converters that change a type's JSON shape, was the fiddliest thing in the
+design and guarded against a mistake that is obvious the first time the model is exercised. The
+asymmetry with `EnsureValueCanEverMatch` is accepted: an unmatchable sibling value is invisible at
+runtime because the rule silently never fires, whereas a pointless not-empty rule simply always
+passes and costs nothing.
+
+`Nullable<T>` of a numeric or boolean type is a different case and is genuinely useful: a `null`
+payload is empty per the table above, so `[JsonRequiredAndNotEmpty]` on an `int?` rejects an explicit
+null.
 
 ### Combining with other attributes
 
@@ -256,35 +274,6 @@ feature to make the graph mean something the walk cannot see. `ReferenceHandler`
 `JsonObjectCreationHandling.Populate` and polymorphism are handled exactly as they are today, and a
 type claimed only because of the new attribute routes through the same guard.
 
-## Compile-time rejection
-
-A member whose JSON form can never be empty is a mistake, not a rule that should quietly never fire.
-`CompileNonEmpty` throws `InvalidOperationException` in that case, mirroring `EnsureValueCanEverMatch`
-and its message shape:
-
-```
-[JsonRequiredAndNotEmptyAttribute] on member 'Count' of type 'Config' decorates a member of type
-'Int32', whose JSON representation can never be empty.
-```
-
-Deliberately narrow. It fires only when both hold:
-
-1. The member's declared type is non-nullable and is `bool`, an enum, or one of the built-in numeric
-   types (`byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `nint`, `nuint`,
-   `float`, `double`, `decimal`).
-
-   `Nullable<T>` of any of those is explicitly **not** rejected. A `null` payload is empty per the
-   semantics table, so `[JsonRequiredAndNotEmpty]` on an `int?` is meaningful: it rejects an explicit
-   null. Only the non-nullable form can never be empty.
-2. `options.GetConverter(type)` returns a converter declared in the `System.Text.Json` assembly.
-
-The second condition is what keeps a `JsonStringEnumConverter`-backed enum, or any custom converter
-that changes a type's JSON shape, out of the rejection. False negatives are accepted. False positives
-are not, because a false positive breaks a model that would otherwise work.
-
-This is the least valuable component in the design and the first thing to cut if it proves fiddly in
-implementation. Cutting it changes no other behavior.
-
 ## Testing
 
 New files:
@@ -303,8 +292,8 @@ Additions to existing files:
   and the unchanged single-list message.
 - `SemanticsTests.cs`: `null` is empty, whitespace is not empty, absent lands in `MissingProperties`
   and not `EmptyProperties`.
-- `RequirementRuleCompilerTests.cs`: the rejection fires for `int` and for a built-in enum, and does
-  not fire for a `JsonStringEnumConverter`-backed enum or for `int?`.
+- `RequirementRuleCompilerTests.cs`: decorating an `int` compiles a rule and throws nothing, and that
+  rule is always satisfied. Decorating an `int?` rejects an explicit null.
 - `ConverterTests.cs`: `[JsonRequiredAndNotEmpty]` alone, with no `[JsonRequired]`, reports an absent
   property in `MissingProperties`. This is the test that pins the attribute's self-sufficiency.
 - `ConverterTests.cs`: a member carrying both `[JsonRequiredIfSiblingIs]` and
