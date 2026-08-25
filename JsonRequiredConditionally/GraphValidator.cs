@@ -29,7 +29,12 @@ internal static class GraphValidator
 	/// populated.
 	/// </param>
 	/// <param name="userOptions">The caller's own options, whose naming policy and case sensitivity apply to rule evaluation.</param>
-	/// <exception cref="JsonRequiredConditionallyException">One or more requirements were unmet.</exception>
+	/// <exception cref="JsonRequiredConditionallyException">
+	/// Violations are collected into two categories as the walk descends: properties absent from
+	/// the payload, and properties present but empty. Both categories accumulate across the whole
+	/// graph before this single exception is thrown at the end, carrying every unmet requirement of
+	/// either kind rather than stopping at the first.
+	/// </exception>
 	internal static void Validate(JsonElement element, object instance, JsonSerializerOptions plainOptions, JsonSerializerOptions userOptions)
 	{
 		StringComparer comparer = userOptions.PropertyNameCaseInsensitive

@@ -88,4 +88,45 @@ public class NamingTests
 		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<SimpleConfig>("""{"Kind":"Advanced","TUNING":"fast"}""", options));
 	}
+
+	[TestMethod]
+	public void NotEmptyRuleHonorsJsonPropertyName()
+	{
+		JsonSerializerOptions options = new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyRenamedConfig>(/*lang=json,strict*/ """{"tuning_name":""}""", options));
+
+		CollectionAssert.AreEqual(new List<string> { "tuning_name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NotEmptyRuleHonorsACamelCaseNamingPolicy()
+	{
+		JsonSerializerOptions options = new()
+		{
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+			Converters = { new JsonRequiredConditionallyConverterFactory() },
+		};
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"name":""}""", options));
+
+		CollectionAssert.AreEqual(new List<string> { "name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NotEmptyRuleHonorsCaseInsensitiveMatching()
+	{
+		JsonSerializerOptions options = new()
+		{
+			PropertyNameCaseInsensitive = true,
+			Converters = { new JsonRequiredConditionallyConverterFactory() },
+		};
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"NAME":""}""", options));
+
+		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+	}
 }

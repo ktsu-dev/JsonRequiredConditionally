@@ -128,6 +128,30 @@ public class NotEmptyTests
 	}
 
 	[TestMethod]
+	public void NullListIsReportedAsEmpty()
+	{
+		JsonRequiredConditionallyException exception = Throws<NotEmptyListConfig>(/*lang=json,strict*/ """{"Items":null}""");
+
+		CollectionAssert.AreEqual(new List<string> { "Items" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NullDictionaryIsReportedAsEmpty()
+	{
+		JsonRequiredConditionallyException exception = Throws<NotEmptyDictionaryConfig>(/*lang=json,strict*/ """{"Lookup":null}""");
+
+		CollectionAssert.AreEqual(new List<string> { "Lookup" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NullBehindACustomConverterIsReportedAsEmpty()
+	{
+		JsonRequiredConditionallyException exception = Throws<NotEmptyConvertedConfig>(/*lang=json,strict*/ """{"Label":null}""");
+
+		CollectionAssert.AreEqual(new List<string> { "Label" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
 	public void EmptyStringBehindACustomConverterIsReportedAsEmpty()
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyConvertedConfig>(/*lang=json,strict*/ """{"Label":""}""");

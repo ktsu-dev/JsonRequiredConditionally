@@ -102,4 +102,45 @@ public class ConverterTests
 
 		StringAssert.Contains(json, "Tuning");
 	}
+
+	[TestMethod]
+	public void NotEmptyAttributeAloneReportsAnAbsentProperty()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ "{}", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void BothAttributesOnOneAbsentMemberReportItOnce()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyAndConditionalConfig>(
+				"""{"Kind":"Advanced"}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.IsEmpty(exception.EmptyProperties);
+	}
+
+	[TestMethod]
+	public void BothAttributesReportEmptinessEvenWhenTheSiblingConditionIsUnmet()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyAndConditionalConfig>(
+				"""{"Kind":"Basic","Tuning":""}""", CreateOptions()));
+
+		Assert.IsEmpty(exception.MissingProperties);
+		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void BothAttributesStillReportAbsenceWhenTheSiblingConditionIsUnmet()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyAndConditionalConfig>(
+				"""{"Kind":"Basic"}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+	}
 }
