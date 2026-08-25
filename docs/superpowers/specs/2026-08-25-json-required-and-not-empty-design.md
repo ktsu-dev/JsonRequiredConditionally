@@ -105,12 +105,23 @@ exactly what it means today.
 
 Rules of different kinds compile and evaluate independently. A member may carry any combination.
 
-`[JsonRequired]` plus `[JsonRequiredAndNotEmpty]` is the expected pairing for a collection that must
-be supplied and must have contents. System.Text.Json enforces presence itself and throws its own
-`JsonException` before the walk runs, so on an absent property the caller sees STJ's exception rather
-than `JsonRequiredConditionallyException`. On a present but empty property, STJ is satisfied and the
-walk reports it in `EmptyProperties`. This asymmetry is worth documenting in the README, because the
-exception type a caller catches depends on which of the two failed.
+**`[JsonRequiredAndNotEmpty]` is self-sufficient and should be used alone.** The name states both
+halves and the implementation delivers both: an absent property lands in `MissingProperties`, a
+present but empty one lands in `EmptyProperties`. Adding `[JsonRequired]` alongside it is redundant,
+and the README must say so plainly rather than leaving readers to pair them defensively.
+
+Pairing is not merely redundant, it degrades the diagnostics. The converter buffers the subtree,
+deserializes it through the factory-free clone, and only then runs `GraphValidator`. System.Text.Json's
+own required-property check therefore runs inside that inner deserialization, strictly before the walk.
+On an absent property the caller gets STJ's `JsonException` and never reaches the walk, losing the
+whole point of collecting every violation in one pass. One property is named instead of the full list.
+
+The only argument for also applying `[JsonRequired]` is defense in depth, and it is narrow:
+`[JsonRequiredAndNotEmpty]` does nothing at all if `JsonRequiredConditionallyConverterFactory` is not
+registered in the options, whereas `[JsonRequired]` is enforced by the serializer regardless. It also
+sets `JsonPropertyInfo.IsRequired`, which schema and OpenAPI generators read and the new attribute is
+invisible to. Neither is a reason to pair them by default. Both are worth one sentence in the README
+so the choice is informed.
 
 `[JsonRequiredIfSiblingIs]` plus `[JsonRequiredAndNotEmpty]` on the same member produces two
 independent rules. The conditional rule can fire only on absence, and the new rule fires on absence or
@@ -294,6 +305,8 @@ Additions to existing files:
   and not `EmptyProperties`.
 - `RequirementRuleCompilerTests.cs`: the rejection fires for `int` and for a built-in enum, and does
   not fire for a `JsonStringEnumConverter`-backed enum or for `int?`.
+- `ConverterTests.cs`: `[JsonRequiredAndNotEmpty]` alone, with no `[JsonRequired]`, reports an absent
+  property in `MissingProperties`. This is the test that pins the attribute's self-sufficiency.
 - `ConverterTests.cs`: a member carrying both `[JsonRequiredIfSiblingIs]` and
   `[JsonRequiredAndNotEmpty]`, absent under a satisfied sibling condition, appears exactly once in
   `MissingProperties`.
@@ -309,8 +322,9 @@ Every existing test must pass unmodified. Any change required to an existing tes
 ## Documentation
 
 - `README.md`: the new attribute, the emptiness table, the whitespace divergence from
-  DataAnnotations, and a section on why `[MinLength(1)]` is not the answer, citing the three measured
-  blockers.
+  DataAnnotations, an explicit statement that `[JsonRequired]` should **not** be paired with it and
+  why pairing costs aggregated diagnostics, and a section on why `[MinLength(1)]` is not the answer,
+  citing the three measured blockers.
 - `CLAUDE.md`: the source organization table gains `JsonRequiredAndNotEmptyAttribute.cs` and
   `EmptinessInspector.cs`, `RequirementRule.cs` and `RequirementRuleCompiler.cs` entries widen to two
   rule kinds, and the "Presence, not non-nullness" key pattern gains the new attribute as its stated
