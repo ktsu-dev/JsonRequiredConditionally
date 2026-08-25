@@ -27,6 +27,9 @@ internal static class RequirementRuleCompiler
 	[SuppressMessage("Style", "IDE0028:Collection initialization can be simplified", Justification = "A collection expression does not compile for ConditionalWeakTable on netstandard2.0.")]
 	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, RequirementRule[]>> RuleCache = new();
 
+	[SuppressMessage("Style", "IDE0028:Collection initialization can be simplified", Justification = "A collection expression does not compile for ConditionalWeakTable on netstandard2.0.")]
+	private static readonly ConditionalWeakTable<JsonSerializerOptions, ConcurrentDictionary<Type, NonEmptyRule[]>> NonEmptyRuleCache = new();
+
 	/// <summary>
 	/// A reflection-based options instance used only to ask System.Text.Json's own contract model
 	/// which members of a type it would actually serialize, for the purpose of deciding whether a
@@ -289,6 +292,63 @@ internal static class RequirementRuleCompiler
 			RuleCache.GetValue(options, static _ => new ConcurrentDictionary<Type, RequirementRule[]>());
 
 		return perType.GetOrAdd(type, t => Compile(t, options));
+	}
+
+	/// <summary>
+	/// Builds the non-empty rules for a type by reflecting over its members decorated with
+	/// <see cref="JsonRequiredAndNotEmptyAttribute"/>.
+	/// </summary>
+	/// <param name="type">The type to compile rules for.</param>
+	/// <param name="options">The options to resolve the type's member model through.</param>
+	/// <returns>One rule per decorated member.</returns>
+	internal static NonEmptyRule[] CompileNonEmpty(Type type, JsonSerializerOptions options)
+	{
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(options, type);
+
+		if (typeInfo is null)
+		{
+			return [];
+		}
+
+		List<NonEmptyRule> rules = [];
+
+		foreach (JsonPropertyInfo property in typeInfo.Properties)
+		{
+			if (property.AttributeProvider is not MemberInfo member)
+			{
+				continue;
+			}
+
+			if (!member.IsDefined(typeof(JsonRequiredAndNotEmptyAttribute), inherit: true))
+			{
+				continue;
+			}
+
+			// property.Name is System.Text.Json's own resolved JSON name, so an explicit
+			// [JsonPropertyName] has already won over the naming policy.
+			rules.Add(new NonEmptyRule(property.Name, member.Name));
+		}
+
+		return [.. rules];
+	}
+
+	/// <summary>
+	/// Gets the cached non-empty rules for a type under a given set of options.
+	/// </summary>
+	/// <param name="type">The type to get rules for.</param>
+	/// <param name="options">
+	/// The options to resolve the type's member model through. Must be factory-free, for the same
+	/// reason documented on <see cref="GetRules"/>: System.Text.Json leaves
+	/// <see cref="JsonTypeInfo.Properties"/> empty for a type carrying its own converter, so
+	/// factory-carrying options silently yield no rules at all.
+	/// </param>
+	/// <returns>One rule per decorated member.</returns>
+	internal static NonEmptyRule[] GetNonEmptyRules(Type type, JsonSerializerOptions options)
+	{
+		ConcurrentDictionary<Type, NonEmptyRule[]> perType =
+			NonEmptyRuleCache.GetValue(options, static _ => new ConcurrentDictionary<Type, NonEmptyRule[]>());
+
+		return perType.GetOrAdd(type, t => CompileNonEmpty(t, options));
 	}
 
 	private static SiblingCondition[] BuildConditions(Type type, string memberName, JsonRequiredIfSiblingIsAttribute[] attributes)
