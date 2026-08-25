@@ -1,4 +1,26 @@
-## v1.1.9
+## v1.2.0 (minor)
 
-No significant changes detected since v1.1.9.
+Changes since v1.1.0:
+
+- docs: drop em-dash from the qualified presence rule [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: address final review findings for JsonRequiredAndNotEmpty [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: fix review findings in JsonRequiredAndNotEmpty docs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: document JsonRequiredAndNotEmpty [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
+- test: cover nesting, naming, self-sufficiency and dedup for JsonRequiredAndNotEmpty ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: enforce JsonRequiredAndNotEmpty during the graph walk ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: add EmptyProperties to JsonRequiredConditionallyException ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: claim types decorated with JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: compile NonEmptyRule from JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: add JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
+- feat: add EmptinessInspector for payload-element emptiness ([@matt-edmondson](https://github.com/matt-edmondson))
+- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
+- Restore the missing package icon and suppress cross-TFM APICompat noise ([@matt-edmondson](https://github.com/matt-edmondson))
+- Stop Update SDKs failing when there is nothing to update ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Update ktsu.Sdk to 2.21.1 ([@matt-edmondson](https://github.com/matt-edmondson))
+- Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update copyright years and adjust output directory in configuration files ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add .mailmap file for author name normalization ([@matt-edmondson](https://github.com/matt-edmondson))
 
