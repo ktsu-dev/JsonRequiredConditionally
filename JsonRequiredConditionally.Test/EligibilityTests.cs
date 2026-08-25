@@ -91,4 +91,46 @@ public class EligibilityTests
 		Assert.AreEqual(Kind.Basic, holder.Inner.Kind);
 		Assert.IsNull(holder.Inner.Name);
 	}
+
+	[TestMethod]
+	public void TypeWithOnlyTheNotEmptyAttributeIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyHolder)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberThroughACollectionIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptySequenceHolder)));
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyDictionaryHolder)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberThroughNestedCollectionsIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyNestedSequenceHolder)));
+	}
+
+	[TestMethod]
+	public void BareCollectionsAreStillNotClaimed()
+	{
+		// IsExcludedFromEligibility rejects anything assignable to IEnumerable, so a bare collection
+		// is never claimed at its own top however decorated its element type is. The holder that owns
+		// the collection is what gets claimed, which is what roots the reported path at the outermost
+		// container. The new attribute must not change this.
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(List<NotEmptyStringConfig>)));
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig[])));
+	}
+
+	[TestMethod]
+	public void UndecoratedTypesAreStillNotClaimed()
+	{
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(PlainConfig)));
+	}
 }

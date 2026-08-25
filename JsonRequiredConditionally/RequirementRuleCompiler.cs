@@ -465,6 +465,13 @@ internal static class RequirementRuleCompiler
 	/// requirement holds: the rule is about the member's <em>presence in the payload</em>, not about
 	/// its materialized value, and <see cref="Compile"/> emits a rule regardless. Claiming a type on
 	/// the strength of such a member is therefore correct, not merely harmless.
+	/// <para>
+	/// Two attributes claim a type: <see cref="JsonRequiredIfSiblingIsAttribute"/> and
+	/// <see cref="JsonRequiredAndNotEmptyAttribute"/>. Either is sufficient. The probe still runs
+	/// with <c>IncludeFields = true</c> so a decorated plain field claims its type, and rule
+	/// compilation still runs against the caller's real options, so with <c>IncludeFields = false</c>
+	/// no rule of either kind is produced and nothing is enforced.
+	/// </para>
 	/// </remarks>
 	private static bool HasDirectlyDecoratedMember(Type type)
 	{
@@ -478,7 +485,8 @@ internal static class RequirementRuleCompiler
 		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
 			if (property.AttributeProvider is MemberInfo member &&
-				member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true))
+				(member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true) ||
+					member.IsDefined(typeof(JsonRequiredAndNotEmptyAttribute), inherit: true)))
 			{
 				return true;
 			}
