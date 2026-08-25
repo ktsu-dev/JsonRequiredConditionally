@@ -1,1 +1,1 @@
-A System.Text.Json attribute that makes a property required only when a sibling property has a given value, enforced during deserialization.
+A System.Text.Json library for declarative requirement and emptiness validation over the contract model: a property required only when a sibling holds a given value, and a property required to be present and non-empty, both enforced during deserialization.

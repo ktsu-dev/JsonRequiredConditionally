@@ -169,6 +169,98 @@ a configuration this library cannot support: `ReferenceHandler` and a type-level
 `[JsonObjectCreationHandling]` are rejected on write as well as on read. See
 [Limitations](#limitations).
 
+## `[JsonRequiredAndNotEmpty]`
+
+`[JsonRequiredIfSiblingIs]` answers a presence question. `[JsonRequiredAndNotEmpty]` answers a
+different one: the property was present, but was there anything in it. It widens this library's scope
+from conditional presence to declarative requirement and emptiness validation over the same
+System.Text.Json contract model, and it is unconditional: no sibling, no value to match, just present
+and non-empty.
+
+```csharp
+using ktsu.JsonRequiredConditionally;
+using System.Text.Json;
+
+public sealed class Config
+{
+	[JsonRequiredAndNotEmpty]
+	public List<string> Tags { get; set; } = [];
+}
+
+JsonSerializerOptions options = new()
+{
+	Converters = { new JsonRequiredConditionallyConverterFactory() },
+};
+
+// throws JsonRequiredConditionallyException: Tags is absent, reported in MissingProperties
+JsonSerializer.Deserialize<Config>("""{}""", options);
+
+// throws JsonRequiredConditionallyException: Tags is present but empty, reported in EmptyProperties
+JsonSerializer.Deserialize<Config>("""{"Tags":[]}""", options);
+
+// succeeds
+JsonSerializer.Deserialize<Config>("""{"Tags":["a"]}""", options);
+```
+
+### Semantics
+
+A decorated member is satisfied when its JSON property is present and its value is non-empty:
+
+| Payload | Result |
+|---|---|
+| property absent | violation, reported as **missing** |
+| `null` | violation, reported as **empty** |
+| `""` | violation, reported as **empty** |
+| `[]` | violation, reported as **empty** |
+| `{}` | violation, reported as **empty** |
+| `"   "` | satisfied |
+| `"x"`, `[1]`, `{"a":1}` | satisfied |
+| number, `true`, `false` | satisfied, and always will be |
+
+**Whitespace is not empty.** A string is empty when its length is zero, which is System.Text.Json's own
+definition and the one this library uses. That diverges deliberately from
+`System.ComponentModel.DataAnnotations.RequiredAttribute`, which treats a whitespace-only string as
+absent. `"   "` satisfies `[JsonRequiredAndNotEmpty]` and would not satisfy `[Required]`.
+
+### Pairing with `[JsonRequired]`
+
+`[JsonRequiredAndNotEmpty]` is self-sufficient. An absent property already lands in
+`MissingProperties`, so adding `[JsonRequired]` alongside it is redundant.
+
+Pairing also costs diagnostics. The converter buffers the subtree and deserializes it through a
+factory-free clone of your options before this library's own walk runs. System.Text.Json's own
+required-property check happens during that inner deserialization, strictly before the walk, so on an
+absent property the caller gets System.Text.Json's own `JsonException` instead of reaching the walk
+that would have collected every other violation in the payload. One property is named, not the full
+list.
+
+There are two narrow reasons someone might still pair them, and neither is a default:
+
+- **`[JsonRequiredAndNotEmpty]` does nothing if the factory is not registered** in
+  `JsonSerializerOptions.Converters`, whereas `[JsonRequired]` is enforced by the serializer regardless.
+- **`[JsonRequired]` sets `JsonPropertyInfo.IsRequired`**, which schema and OpenAPI generators read.
+  `[JsonRequiredAndNotEmpty]` is invisible to them.
+
+### Why not `[MinLength(1)]`
+
+`System.ComponentModel.DataAnnotations.MinLengthAttribute` looks like the obvious alternative. It
+applies to collections and strings and expresses emptiness directly. Three blockers were measured, not
+assumed, against a model shaped like how consuming applications in this ecosystem actually declare
+their types:
+
+1. **Non-public members are invisible to it.** `Validator.TryValidateObject` reads properties through
+   `TypeDescriptor`, which yields public properties only. `internal` and `private` members carrying
+   `[JsonInclude]`, common in this ecosystem, produced no validation results at all.
+2. **It does not recurse.** A holder containing an invalid child was reported valid. Reaching the
+   child means hand-writing the walk and the path reporting `GraphValidator` already does.
+3. **`[Required]` is non-null, not non-empty, for anything that is not a `System.String`.** A record
+   type wrapping `""` passed, because `RequiredAttribute` only special-cases `System.String` itself,
+   and semantic string types in this ecosystem are routinely records.
+
+None of this makes DataAnnotations a bad choice in general. It simply cannot see what this library
+sees: non-public members behind `[JsonInclude]`, nested graphs, and values whose emptiness is only
+answerable from the JSON payload itself.
+
 ## Supported Frameworks
 
 `net10.0`, `net9.0`, `net8.0`, `net7.0`, `netstandard2.0`, `netstandard2.1`.
@@ -278,22 +370,29 @@ of the given values. Repeatable; `AllowMultiple = true`, `Inherited = true`.
 | `SiblingName` | `string` | The CLR name of the sibling member to inspect. |
 | `Value` | `object?` | The value the sibling must have for the decorated member to be required. |
 
+### `JsonRequiredAndNotEmptyAttribute`
+
+Marks a property or field as required during deserialization and additionally requires its value to be
+non-empty. Parameterless, and carries no state. `AllowMultiple = false`, `Inherited = true`.
+
 ### `JsonRequiredConditionallyConverterFactory`
 
 A `JsonConverterFactory` that claims any type reaching a member decorated with
-`JsonRequiredIfSiblingIsAttribute`. Add one instance to `JsonSerializerOptions.Converters`. Types with
-no decorated members are not claimed and keep the serializer's normal fast path.
+`JsonRequiredIfSiblingIsAttribute` or `JsonRequiredAndNotEmptyAttribute`. Add one instance to
+`JsonSerializerOptions.Converters`. Types with no decorated members are not claimed and keep the
+serializer's normal fast path.
 
 ### `JsonRequiredConditionallyException`
 
-A `JsonException` thrown when one or more properties were required by their sibling values but were
-absent from the JSON payload.
+A `JsonException` thrown when one or more properties failed a requirement declared by this library:
+absent when required, or present but empty when required to be non-empty.
 
 #### Properties
 
 | Name | Type | Description |
 |------|------|-------------|
-| `MissingProperties` | `IReadOnlyList<string>` | The paths of every property that was required but absent, e.g. `Tuning`, `Child.Tuning`, `Children[1].Tuning`, `Lookup.a.Tuning`. |
+| `MissingProperties` | `IReadOnlyList<string>` | The paths of every property that was required but absent, e.g. `Tuning`, `Child.Tuning`, `Children[1].Tuning`, `Lookup.a.Tuning`. A property decorated with `[JsonRequiredAndNotEmpty]` that was absent entirely lands here, not in `EmptyProperties`. |
+| `EmptyProperties` | `IReadOnlyList<string>` | The paths of every property that was present but carried an empty value, in the same path format. |
 
 ## Contributing
 
