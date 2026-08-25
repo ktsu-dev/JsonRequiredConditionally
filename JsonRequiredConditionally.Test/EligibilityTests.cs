@@ -50,6 +50,36 @@ public class EligibilityTests
 	}
 
 	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldIsEnforcedWhenIncludeFieldsIsOn()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyFieldDecoratedConfig>(
+				"""{}""", CreateOptions(includeFields: true)));
+
+		CollectionAssert.AreEquivalent(new List<string> { "Name" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldIsNotEnforcedWhenIncludeFieldsIsOff()
+	{
+		// System.Text.Json never populates the field in this configuration either, so there is
+		// nothing to validate and no rule is compiled -- claiming the type costs only buffering.
+		NotEmptyFieldDecoratedConfig? config = JsonSerializer.Deserialize<NotEmptyFieldDecoratedConfig>(
+			"""{}""", CreateOptions(includeFields: false));
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Name);
+	}
+
+	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldTypeIsClaimed()
+	{
+		JsonRequiredConditionallyConverterFactory factory = new();
+
+		Assert.IsTrue(factory.CanConvert(typeof(NotEmptyFieldDecoratedConfig)));
+	}
+
+	[TestMethod]
 	public void NestedSequenceHolderKeepsTheFullPathPrefix()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(

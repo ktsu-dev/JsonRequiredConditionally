@@ -98,7 +98,7 @@ public sealed class JsonRequiredConditionallyException : JsonException
 
 		string names = string.Join("', '", missingProperties);
 
-		return $"The following properties are required by their sibling values but were absent from the JSON payload: '{names}'.";
+		return $"The following properties were required but were absent from the JSON payload: '{names}'.";
 	}
 
 	private static string BuildMessage(IReadOnlyList<string> missingProperties, IReadOnlyList<string> emptyProperties)

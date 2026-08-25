@@ -261,8 +261,10 @@ Additive only:
   IReadOnlyList<string> emptyProperties)`. Both lists are copied, for the reason already documented
   on the single-list constructor.
 - `BuildMessage` widens to name both categories. When only one category is populated, the message is
-  worded for that category alone. The existing single-list constructor's message text does not change,
-  so existing assertions on it keep passing.
+  worded for that category alone. The single-list constructor's message text is reworded to be
+  cause-neutral: the old wording named a sibling condition ("required by their sibling values") that
+  the new attribute does not have, and no existing test asserted that phrase, so nothing was frozen
+  against it.
 
 `MissingProperties` keeps its current meaning and its current message wording. That existing tests
 pass untouched is itself the check that the semantics did not drift.

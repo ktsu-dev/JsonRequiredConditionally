@@ -105,6 +105,53 @@ public class ContainmentTests
 	}
 
 	[TestMethod]
+	public void ReferenceHandlerThrowsForTypeClaimedOnlyByTheNotEmptyAttribute()
+	{
+		JsonSerializerOptions options = new()
+		{
+			ReferenceHandler = ReferenceHandler.Preserve,
+			Converters = { new JsonRequiredConditionallyConverterFactory() },
+		};
+
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>("""{"Name":"a"}""", options));
+
+		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
+		StringAssert.Contains(exception.Message, "ReferenceHandler");
+	}
+
+	[TestMethod]
+	public void ReferenceHandlerThrowsOnSerializationTooForTypeClaimedOnlyByTheNotEmptyAttribute()
+	{
+		JsonSerializerOptions options = new()
+		{
+			ReferenceHandler = ReferenceHandler.Preserve,
+			Converters = { new JsonRequiredConditionallyConverterFactory() },
+		};
+
+		Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Serialize(new NotEmptyStringConfig { Name = "a" }, options));
+	}
+
+	[TestMethod]
+	public void PopulateObjectCreationHandlingThrowsForTypeClaimedOnlyByTheNotEmptyAttribute()
+	{
+		JsonSerializerOptions options = new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };
+
+		if (!TrySetPreferredObjectCreationHandlingToPopulate(options))
+		{
+			Assert.Inconclusive(PopulateUnavailable);
+			return;
+		}
+
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>("""{"Name":"a"}""", options));
+
+		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
+		StringAssert.Contains(exception.Message, "Populate");
+	}
+
+	[TestMethod]
 	public void OptionsLevelPopulateDoesNotBreakSerialization()
 	{
 		JsonSerializerOptions options = CreateOptions();

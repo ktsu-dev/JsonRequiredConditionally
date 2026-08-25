@@ -531,6 +531,18 @@ public sealed class NotEmptyStringConfig
 	public string? Name { get; set; }
 }
 
+/// <summary>
+/// A type whose only decorated member is a plain public field carrying
+/// <see cref="JsonRequiredAndNotEmptyAttribute"/>, so it is invisible to a probe configured with
+/// <c>IncludeFields = false</c>.
+/// </summary>
+public sealed class NotEmptyFieldDecoratedConfig
+{
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture specifically exercises a plain public field as the decorated member, which requires an actual field.")]
+	[JsonRequiredAndNotEmpty]
+	public string? Name;
+}
+
 /// <summary>A decorated list member.</summary>
 public sealed class NotEmptyListConfig
 {

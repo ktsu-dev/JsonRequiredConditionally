@@ -25,8 +25,10 @@ a single exception, with a path to each one.
   only when a sibling holds a specific value.
 - **OR within a sibling, AND across siblings**: repeat the attribute with the same sibling name to accept
   several qualifying values; use different sibling names to require all of several conditions at once.
-- **Presence-based, like `[JsonRequired]`**: a required property that is physically present in the payload
-  passes even when its value is `null`.
+- **Presence-based, like `[JsonRequired]`**: for `[JsonRequiredIfSiblingIs]`, a required property that
+  is physically present in the payload passes even when its value is `null`.
+  `[JsonRequiredAndNotEmpty]` is the one stated exception: it treats `null`, and other empty values, as
+  a violation. See [Semantics](#semantics) and [`[JsonRequiredAndNotEmpty]`](#jsonrequiredandnotempty).
 - **Whole-graph validation**: nested objects, arrays, and dictionaries are all walked, and every missing
   property is reported together, not just the first.
 - **Path-qualified errors**: `JsonRequiredConditionallyException.MissingProperties` reports paths such as
@@ -109,13 +111,18 @@ AND-ing those would be unsatisfiable, since `Kind` cannot be both `Advanced` and
 
 ## Semantics
 
-**Presence satisfies the requirement, not non-nullness.** A required property that is physically
-present passes even when its value is `null`. This mirrors how `[JsonRequired]` itself behaves.
+**Presence satisfies the requirement, not non-nullness — for `[JsonRequiredIfSiblingIs]`.** A required
+property that is physically present passes even when its value is `null`. This mirrors how
+`[JsonRequired]` itself behaves.
 
 ```jsonc
 { "Kind": "Advanced" }                  // absent  -> throws
 { "Kind": "Advanced", "Tuning": null }  // present -> passes
 ```
+
+`[JsonRequiredAndNotEmpty]` is the one stated exception to this rule: it treats `null`, along with
+other empty values, as a violation rather than as satisfying presence. See
+[`[JsonRequiredAndNotEmpty]`](#jsonrequiredandnotempty) below.
 
 **Absent siblings read as their CLR default.** Sibling values are read from the materialized object,
 so a sibling missing from the payload reads as `default`. An enum sibling whose zero value is a
@@ -163,6 +170,12 @@ exception.MissingProperties   // ["Tuning", "Child.Tuning"]
                               // arrays: "Children[1].Tuning"
                               // dicts:  "Lookup.a.Tuning"
 ```
+
+A walk can produce two categories of violation, not one. `MissingProperties` covers absence, and
+`EmptyProperties` covers a property that was present but carried an empty value under
+`[JsonRequiredAndNotEmpty]`. Both are collected across the whole graph in the same pass and a single
+`JsonRequiredConditionallyException` reports whichever categories are non-empty. See
+[`[JsonRequiredAndNotEmpty]`](#jsonrequiredandnotempty) below.
 
 **Serialization is not validated.** `Write` is plain delegation. It can still throw, but only to refuse
 a configuration this library cannot support: `ReferenceHandler` and a type-level
@@ -222,6 +235,9 @@ when its length is zero. That diverges deliberately from
 `System.ComponentModel.DataAnnotations.RequiredAttribute`, which treats a whitespace-only string as
 absent. `"   "` satisfies `[JsonRequiredAndNotEmpty]` and would not satisfy `[Required]`.
 
+`EmptyProperties` is where present-but-empty violations land. `MissingProperties` is where absent ones
+land, including for members decorated with `[JsonRequiredAndNotEmpty]`.
+
 ### Pairing with `[JsonRequired]`
 
 `[JsonRequiredAndNotEmpty]` is self-sufficient. An absent property already lands in
@@ -259,9 +275,6 @@ assumed:
 None of this makes DataAnnotations a bad choice in general. It simply cannot see what this library
 sees: non-public members behind `[JsonInclude]`, nested graphs, and values whose emptiness is only
 answerable from the JSON payload itself.
-
-`EmptyProperties` is where present-but-empty violations land. `MissingProperties` is where absent ones
-land, including for members decorated with `[JsonRequiredAndNotEmpty]`.
 
 ## Supported Frameworks
 
