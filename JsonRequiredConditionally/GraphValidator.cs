@@ -29,20 +29,25 @@ internal static class GraphValidator
 	/// populated.
 	/// </param>
 	/// <param name="userOptions">The caller's own options, whose naming policy and case sensitivity apply to rule evaluation.</param>
-	/// <exception cref="JsonRequiredConditionallyException">One or more requirements were unmet.</exception>
+	/// <exception cref="JsonRequiredConditionallyException">
+	/// Violations are collected into two categories as the walk descends: properties absent from
+	/// the payload, and properties present but empty. Both categories accumulate across the whole
+	/// graph before this single exception is thrown at the end, carrying every unmet requirement of
+	/// either kind rather than stopping at the first.
+	/// </exception>
 	internal static void Validate(JsonElement element, object instance, JsonSerializerOptions plainOptions, JsonSerializerOptions userOptions)
 	{
 		StringComparer comparer = userOptions.PropertyNameCaseInsensitive
 			? StringComparer.OrdinalIgnoreCase
 			: StringComparer.Ordinal;
 
-		List<string> missing = [];
+		ViolationCollector violations = new();
 
-		Walk(element, instance, plainOptions, userOptions, comparer, string.Empty, missing);
+		Walk(element, instance, plainOptions, userOptions, comparer, string.Empty, violations);
 
-		if (missing.Count > 0)
+		if (violations.Any)
 		{
-			throw new JsonRequiredConditionallyException(missing);
+			throw new JsonRequiredConditionallyException(violations.Missing, violations.Empty);
 		}
 	}
 
@@ -53,7 +58,7 @@ internal static class GraphValidator
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
-		List<string> missing)
+		ViolationCollector violations)
 	{
 		if (element.ValueKind != JsonValueKind.Object)
 		{
@@ -74,7 +79,28 @@ internal static class GraphValidator
 			{
 				if (!present.Contains(rule.JsonName) && rule.IsRequiredFor(instance))
 				{
-					missing.Add(Combine(path, rule.JsonName));
+					violations.Missing.Add(Combine(path, rule.JsonName));
+				}
+			}
+
+			foreach (NonEmptyRule rule in RequirementRuleCompiler.GetNonEmptyRules(type, plainOptions))
+			{
+				string fullPath = Combine(path, rule.JsonName);
+
+				if (!TryGetProperty(element, rule.JsonName, comparer, userOptions.PropertyNameCaseInsensitive, out JsonElement child))
+				{
+					// The loop above may already have reported this exact path, when the same member
+					// carries both attributes and its sibling condition was satisfied. Violation lists
+					// hold only actual failures and are therefore short, so a linear scan costs less
+					// than building a set would.
+					if (!violations.Missing.Contains(fullPath))
+					{
+						violations.Missing.Add(fullPath);
+					}
+				}
+				else if (EmptinessInspector.IsEmpty(child))
+				{
+					violations.Empty.Add(fullPath);
 				}
 			}
 		}
@@ -111,7 +137,7 @@ internal static class GraphValidator
 
 			if (TryGetProperty(element, property.Name, comparer, userOptions.PropertyNameCaseInsensitive, out JsonElement child))
 			{
-				Descend(child, value, plainOptions, userOptions, comparer, Combine(path, property.Name), missing);
+				Descend(child, value, plainOptions, userOptions, comparer, Combine(path, property.Name), violations);
 			}
 		}
 	}
@@ -123,20 +149,20 @@ internal static class GraphValidator
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
-		List<string> missing)
+		ViolationCollector violations)
 	{
 		switch (element.ValueKind)
 		{
 			case JsonValueKind.Object when value is IDictionary dictionary:
-				DescendDictionary(element, dictionary, plainOptions, userOptions, comparer, path, missing);
+				DescendDictionary(element, dictionary, plainOptions, userOptions, comparer, path, violations);
 				break;
 
 			case JsonValueKind.Object:
-				Walk(element, value, plainOptions, userOptions, comparer, path, missing);
+				Walk(element, value, plainOptions, userOptions, comparer, path, violations);
 				break;
 
 			case JsonValueKind.Array when value is IEnumerable sequence:
-				DescendSequence(element, sequence, plainOptions, userOptions, comparer, path, missing);
+				DescendSequence(element, sequence, plainOptions, userOptions, comparer, path, violations);
 				break;
 
 			default:
@@ -151,7 +177,7 @@ internal static class GraphValidator
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
-		List<string> missing)
+		ViolationCollector violations)
 	{
 		bool caseInsensitive = userOptions.PropertyNameCaseInsensitive;
 
@@ -170,7 +196,7 @@ internal static class GraphValidator
 
 			if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
 			{
-				Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), missing);
+				Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), violations);
 			}
 		}
 	}
@@ -196,7 +222,7 @@ internal static class GraphValidator
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
-		List<string> missing)
+		ViolationCollector violations)
 	{
 		// Zip the JSON array's own enumerator against the sequence's, rather than indexing the
 		// element by position: JsonElement's array indexer falls back to a sequential scan for
@@ -218,7 +244,7 @@ internal static class GraphValidator
 
 				if (item is not null)
 				{
-					Descend(itemElement, item, plainOptions, userOptions, comparer, $"{path}[{index}]", missing);
+					Descend(itemElement, item, plainOptions, userOptions, comparer, $"{path}[{index}]", violations);
 				}
 
 				index++;
@@ -263,4 +289,30 @@ internal static class GraphValidator
 
 	private static string Combine(string prefix, string name) =>
 		string.IsNullOrEmpty(prefix) ? name : prefix + "." + name;
+}
+
+/// <summary>
+/// Accumulates the violations found during one walk, in their two categories.
+/// </summary>
+/// <remarks>
+/// A single parameter carrying both lists, rather than one parameter per category: the walk methods
+/// already take seven parameters each, and the two categories are always produced and consumed
+/// together.
+/// </remarks>
+internal sealed class ViolationCollector
+{
+	/// <summary>
+	/// Gets the paths of properties that were required but absent from the payload.
+	/// </summary>
+	internal List<string> Missing { get; } = [];
+
+	/// <summary>
+	/// Gets the paths of properties that were present but carried an empty value.
+	/// </summary>
+	internal List<string> Empty { get; } = [];
+
+	/// <summary>
+	/// Gets a value indicating whether any violation was collected.
+	/// </summary>
+	internal bool Any => Missing.Count > 0 || Empty.Count > 0;
 }

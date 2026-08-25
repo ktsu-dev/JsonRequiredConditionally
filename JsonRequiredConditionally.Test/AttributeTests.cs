@@ -2,6 +2,7 @@
 
 namespace ktsu.JsonRequiredConditionally.Tests;
 
+using System.Linq;
 using System.Reflection;
 
 [TestClass]
@@ -65,5 +66,36 @@ public class AttributeTests
 		[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Basic)]
 		[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
 		public string? Tuning { get; set; }
+	}
+
+	[TestMethod]
+	public void NotEmptyAttributeTargetsPropertiesAndFields()
+	{
+		AttributeUsageAttribute? usage = typeof(JsonRequiredAndNotEmptyAttribute)
+			.GetCustomAttributes(typeof(AttributeUsageAttribute), inherit: false)
+			.Cast<AttributeUsageAttribute>()
+			.SingleOrDefault();
+
+		Assert.IsNotNull(usage);
+		Assert.AreEqual(AttributeTargets.Property | AttributeTargets.Field, usage.ValidOn);
+	}
+
+	[TestMethod]
+	public void NotEmptyAttributeIsNotRepeatable()
+	{
+		AttributeUsageAttribute? usage = typeof(JsonRequiredAndNotEmptyAttribute)
+			.GetCustomAttributes(typeof(AttributeUsageAttribute), inherit: false)
+			.Cast<AttributeUsageAttribute>()
+			.SingleOrDefault();
+
+		Assert.IsNotNull(usage);
+		Assert.IsFalse(usage.AllowMultiple);
+		Assert.IsTrue(usage.Inherited);
+	}
+
+	[TestMethod]
+	public void NotEmptyAttributeIsSealed()
+	{
+		Assert.IsTrue(typeof(JsonRequiredAndNotEmptyAttribute).IsSealed);
 	}
 }

@@ -322,4 +322,57 @@ public class NestingTests
 		Assert.IsNotNull(holder);
 		Assert.AreEqual(Kind.Advanced, holder.Child.Kind);
 	}
+
+	[TestMethod]
+	public void EmptyMemberInsideANestedObjectReportsADottedPath()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyHolder>(
+				/*lang=json,strict*/ """{"Child":{"Name":""}}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Child.Name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void EmptyMemberInsideASequenceReportsAnIndexedPath()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
+				/*lang=json,strict*/ """{"Children":[{"Name":"ok"},{"Name":""}]}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Children[1].Name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void EmptyMemberInsideADictionaryReportsAKeyedPath()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyDictionaryHolder>(
+				/*lang=json,strict*/ """{"Lookup":{"a":{"Name":""}}}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Lookup.a.Name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void EveryEmptyMemberInASequenceIsReportedInOnePass()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
+				/*lang=json,strict*/ """{"Children":[{"Name":""},{"Name":""}]}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(
+			new List<string> { "Children[0].Name", "Children[1].Name" },
+			exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void MissingAndEmptyViolationsAreCollectedTogether()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
+				/*lang=json,strict*/ """{"Children":[{},{"Name":""}]}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Children[0].Name" }, exception.MissingProperties.ToList());
+		CollectionAssert.AreEqual(new List<string> { "Children[1].Name" }, exception.EmptyProperties.ToList());
+	}
 }

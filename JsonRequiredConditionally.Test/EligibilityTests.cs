@@ -50,6 +50,36 @@ public class EligibilityTests
 	}
 
 	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldIsEnforcedWhenIncludeFieldsIsOn()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyFieldDecoratedConfig>(
+				"""{}""", CreateOptions(includeFields: true)));
+
+		CollectionAssert.AreEquivalent(new List<string> { "Name" }, exception.MissingProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldIsNotEnforcedWhenIncludeFieldsIsOff()
+	{
+		// System.Text.Json never populates the field in this configuration either, so there is
+		// nothing to validate and no rule is compiled -- claiming the type costs only buffering.
+		NotEmptyFieldDecoratedConfig? config = JsonSerializer.Deserialize<NotEmptyFieldDecoratedConfig>(
+			"""{}""", CreateOptions(includeFields: false));
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Name);
+	}
+
+	[TestMethod]
+	public void NotEmptyDecoratedPlainFieldTypeIsClaimed()
+	{
+		JsonRequiredConditionallyConverterFactory factory = new();
+
+		Assert.IsTrue(factory.CanConvert(typeof(NotEmptyFieldDecoratedConfig)));
+	}
+
+	[TestMethod]
 	public void NestedSequenceHolderKeepsTheFullPathPrefix()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
@@ -90,5 +120,47 @@ public class EligibilityTests
 
 		Assert.AreEqual(Kind.Basic, holder.Inner.Kind);
 		Assert.IsNull(holder.Inner.Name);
+	}
+
+	[TestMethod]
+	public void TypeWithOnlyTheNotEmptyAttributeIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyHolder)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberThroughACollectionIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptySequenceHolder)));
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyDictionaryHolder)));
+	}
+
+	[TestMethod]
+	public void HolderReachingANotEmptyMemberThroughNestedCollectionsIsClaimed()
+	{
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyNestedSequenceHolder)));
+	}
+
+	[TestMethod]
+	public void BareCollectionsAreStillNotClaimed()
+	{
+		// IsExcludedFromEligibility rejects anything assignable to IEnumerable, so a bare collection
+		// is never claimed at its own top however decorated its element type is. The holder that owns
+		// the collection is what gets claimed, which is what roots the reported path at the outermost
+		// container. The new attribute must not change this.
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(List<NotEmptyStringConfig>)));
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig[])));
+	}
+
+	[TestMethod]
+	public void UndecoratedTypesAreStillNotClaimed()
+	{
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(PlainConfig)));
 	}
 }

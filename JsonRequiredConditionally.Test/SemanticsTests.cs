@@ -71,4 +71,33 @@ public class SemanticsTests
 		Assert.ThrowsExactly<InvalidOperationException>(
 			() => JsonSerializer.Deserialize<BrokenConfig>("""{"Kind":"Advanced"}""", CreateOptions()));
 	}
+
+	[TestMethod]
+	public void PresenceAloneNoLongerSatisfiesANotEmptyMember()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"Name":null}""", CreateOptions()));
+
+		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void NotEmptyDoesNothingWhenTheFactoryIsNotRegistered()
+	{
+		NotEmptyStringConfig? config = JsonSerializer.Deserialize<NotEmptyStringConfig>(
+			/*lang=json,strict*/ "{}", JsonSerializerOptions.Default);
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Name);
+	}
+
+	[TestMethod]
+	public void WriteIsNotValidated()
+	{
+		NotEmptyStringConfig config = new() { Name = string.Empty };
+
+		string json = JsonSerializer.Serialize(config, CreateOptions());
+
+		StringAssert.Contains(json, "Name");
+	}
 }

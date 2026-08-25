@@ -70,4 +70,66 @@ public class ExceptionTests
 		Assert.AreEqual("outer", exception.Message);
 		Assert.AreSame(inner, exception.InnerException);
 	}
+
+	[TestMethod]
+	public void ExceptionExposesEmptyProperties()
+	{
+		JsonRequiredConditionallyException exception = new(["tuning"], ["items", "tags"]);
+
+		CollectionAssert.AreEqual(new List<string> { "items", "tags" }, exception.EmptyProperties.ToList());
+	}
+
+	[TestMethod]
+	public void SingleListConstructorLeavesEmptyPropertiesEmpty()
+	{
+		JsonRequiredConditionallyException exception = new(["tuning"]);
+
+		Assert.IsEmpty(exception.EmptyProperties);
+	}
+
+	[TestMethod]
+	public void DefaultConstructorProducesEmptyEmptyProperties()
+	{
+		JsonRequiredConditionallyException exception = new();
+
+		Assert.IsEmpty(exception.EmptyProperties);
+	}
+
+	[TestMethod]
+	public void MessageNamesBothCategoriesWhenBothArePopulated()
+	{
+		JsonRequiredConditionallyException exception = new(["tuning"], ["items"]);
+
+		StringAssert.Contains(exception.Message, "tuning");
+		StringAssert.Contains(exception.Message, "items");
+	}
+
+	[TestMethod]
+	public void MessageForEmptyOnlyDoesNotClaimAnythingWasAbsent()
+	{
+		JsonRequiredConditionallyException exception = new([], ["items"]);
+
+		StringAssert.Contains(exception.Message, "items");
+		Assert.IsFalse(exception.Message.Contains("absent", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void TwoListConstructorWithNoEmptiesMatchesTheSingleListMessage()
+	{
+		JsonRequiredConditionallyException single = new(["tuning"]);
+		JsonRequiredConditionallyException both = new(["tuning"], []);
+
+		Assert.AreEqual(single.Message, both.Message);
+	}
+
+	[TestMethod]
+	public void EmptyPropertiesAreCopiedNotAliased()
+	{
+		List<string> empties = ["items"];
+		JsonRequiredConditionallyException exception = new([], empties);
+
+		empties.Add("tags");
+
+		Assert.HasCount(1, exception.EmptyProperties);
+	}
 }

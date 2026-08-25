@@ -76,3 +76,25 @@ internal sealed class RequirementRule(string jsonName, string memberName, Siblin
 		return true;
 	}
 }
+
+/// <summary>
+/// One member that must be present in the payload and carry a non-empty value.
+/// </summary>
+/// <remarks>
+/// Deliberately a separate type from <see cref="RequirementRule"/> rather than a mode flag on it.
+/// <see cref="RequirementRule"/> is sibling-conditional and evaluates against a materialized instance,
+/// whereas this rule is unconditional and evaluates against a <see cref="System.Text.Json.JsonElement"/>.
+/// A single type carrying both would leave half its state unused on every instance.
+/// </remarks>
+internal sealed class NonEmptyRule(string jsonName, string memberName)
+{
+	/// <summary>
+	/// Gets the name this member carries in the JSON payload.
+	/// </summary>
+	internal string JsonName { get; } = jsonName;
+
+	/// <summary>
+	/// Gets the CLR name of the decorated member.
+	/// </summary>
+	internal string MemberName { get; } = memberName;
+}

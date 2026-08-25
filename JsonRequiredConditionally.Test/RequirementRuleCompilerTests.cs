@@ -98,4 +98,61 @@ public class RequirementRuleCompilerTests
 		Assert.IsTrue(rules[0].IsRequiredFor(new HidingConfig { Kind = Kind.Advanced }));
 		Assert.IsFalse(rules[0].IsRequiredFor(new HidingConfig { Kind = Kind.Basic }));
 	}
+
+	private static JsonSerializerOptions PlainOptions() => new();
+
+	[TestMethod]
+	public void CompilesOneNonEmptyRulePerDecoratedMember()
+	{
+		NonEmptyRule[] rules = RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyStringConfig), PlainOptions());
+
+		Assert.HasCount(1, rules);
+		Assert.AreEqual("Name", rules[0].JsonName);
+		Assert.AreEqual("Name", rules[0].MemberName);
+	}
+
+	[TestMethod]
+	public void CompilesNoNonEmptyRulesForUndecoratedTypes()
+	{
+		Assert.IsEmpty(RequirementRuleCompiler.GetNonEmptyRules(typeof(PlainConfig), PlainOptions()));
+	}
+
+	[TestMethod]
+	public void ConditionalAndNonEmptyRulesCompileIndependently()
+	{
+		JsonSerializerOptions options = PlainOptions();
+
+		Assert.HasCount(1, RequirementRuleCompiler.GetRules(typeof(NotEmptyAndConditionalConfig), options));
+		Assert.HasCount(1, RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyAndConditionalConfig), options));
+	}
+
+	[TestMethod]
+	public void NonEmptyRuleUsesTheResolvedJsonName()
+	{
+		NonEmptyRule[] rules = RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyRenamedConfig), PlainOptions());
+
+		Assert.HasCount(1, rules);
+		Assert.AreEqual("tuning_name", rules[0].JsonName);
+		Assert.AreEqual("Tuning", rules[0].MemberName);
+	}
+
+	[TestMethod]
+	public void DecoratingANonNullableIntCompilesARuleAndThrowsNothing()
+	{
+		NonEmptyRule[] rules = RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyIntConfig), PlainOptions());
+
+		Assert.HasCount(1, rules);
+		Assert.AreEqual("Count", rules[0].JsonName);
+	}
+
+	[TestMethod]
+	public void NonEmptyRulesAreCachedPerOptionsInstance()
+	{
+		JsonSerializerOptions options = PlainOptions();
+
+		NonEmptyRule[] first = RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyStringConfig), options);
+		NonEmptyRule[] second = RequirementRuleCompiler.GetNonEmptyRules(typeof(NotEmptyStringConfig), options);
+
+		Assert.AreSame(first, second);
+	}
 }

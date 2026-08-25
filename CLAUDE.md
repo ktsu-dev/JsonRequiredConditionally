@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**ktsu.JsonRequiredConditionally** is a System.Text.Json library providing a single attribute,
-`[JsonRequiredIfSiblingIs(nameof(Sibling), value)]`, that makes a property or field required during
-deserialization only when a sibling member holds a particular value. It targets multiple frameworks:
+**ktsu.JsonRequiredConditionally** is a System.Text.Json library providing two attributes:
+`[JsonRequiredIfSiblingIs(nameof(Sibling), value)]`, which makes a property or field required during
+deserialization only when a sibling member holds a particular value, and `[JsonRequiredAndNotEmpty]`,
+which makes a property or field required and non-empty unconditionally. It targets multiple frameworks:
 net10.0, net9.0, net8.0, net7.0, netstandard2.0, and netstandard2.1.
 
 ## Build and Test Commands
@@ -70,16 +71,18 @@ that compiles and applies its rules:
 | File | Role |
 |------|------|
 | `JsonRequiredIfSiblingIsAttribute.cs` | Public attribute. Carries the sibling name and the accepted value; repeatable per member. |
+| `JsonRequiredAndNotEmptyAttribute.cs` | Public attribute. Parameterless, `AllowMultiple = false`. Marks a member required and unconditionally non-empty, independent of any sibling. |
 | `JsonRequiredConditionallyConverterFactory.cs` | Public `JsonConverterFactory`. Claims any type that reaches a decorated member (`RequirementRuleCompiler.HasRules`), runs `SerializerFeatureGuard.EnsureSupported`, then constructs a closed `JsonRequiredConditionallyConverter<T>` for it. Its constructor carries the `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]` annotations — they cannot go on the overrides, whose base declarations have none. |
 | `JsonRequiredConditionallyConverter.cs` | Internal `JsonConverter<T>`. Buffers the incoming subtree into a `JsonDocument`, deserializes it through a factory-free clone of the options (`PlainOptionsCache`), then hands the materialized object and the buffered JSON to `GraphValidator`. `Write` is plain delegation — serialization is not validated. |
-| `GraphValidator.cs` | Walks the materialized object graph alongside its source `JsonElement`, recursing through nested objects, arrays (zipped against `JsonElement.EnumerateArray()`), and dictionaries (via `IDictionary` enumeration). Collects every missing required property as a dotted/indexed path (e.g. `Child.Tuning`, `Children[1].Tuning`, `Lookup.a.Tuning`) and throws one `JsonRequiredConditionallyException` at the end. |
-| `RequirementRuleCompiler.cs` | Reflects over a type's `JsonTypeInfo.Properties` (System.Text.Json's own contract model, not raw reflection) to decide type eligibility (`HasRules`, via a reachability walk) and to compile `RequirementRule[]` for a type (`Compile`/`GetRules`, cached per `JsonSerializerOptions`). Also owns `IsPopulatedByDeserialization`, which approximates System.Text.Json's constructor-binding rules for get-only properties — including its value-type rule: a `struct` without an explicit `[JsonConstructor]` always uses its implicit parameterless constructor, so none of its properties are constructor-bound however many public parameterized constructors it declares. Excludes polymorphic types from eligibility entirely. |
-| `RequirementRule.cs` | Defines `SiblingCondition` (one sibling name plus its OR-ed accepted values) and `RequirementRule` (one decorated member plus its AND-ed conditions). Pure data plus the `IsSatisfiedBy` / `IsRequiredFor` predicates `GraphValidator` evaluates against a materialized instance. |
+| `GraphValidator.cs` | Walks the materialized object graph alongside its source `JsonElement`, recursing through nested objects, arrays (zipped against `JsonElement.EnumerateArray()`), and dictionaries (via `IDictionary` enumeration). Collects violations into two categories through `ViolationCollector`, missing for an absent property and empty for one present but empty, each as a dotted/indexed path (e.g. `Child.Tuning`, `Children[1].Tuning`, `Lookup.a.Tuning`), and throws one `JsonRequiredConditionallyException` carrying both lists at the end. |
+| `RequirementRuleCompiler.cs` | Reflects over a type's `JsonTypeInfo.Properties` (System.Text.Json's own contract model, not raw reflection) to decide type eligibility (`HasRules`, via a reachability walk) and to compile `RequirementRule[]` for a type (`Compile`/`GetRules`, cached per `JsonSerializerOptions`). `CompileNonEmpty`/`GetNonEmptyRules` mirror `Compile`/`GetRules` for `[JsonRequiredAndNotEmpty]`, walking the same contract model and caching the same way in a parallel `ConditionalWeakTable`. `HasDirectlyDecoratedMember` probes for either attribute, so a type carrying only the new one is still claimed. Also owns `IsPopulatedByDeserialization`, which approximates System.Text.Json's constructor-binding rules for get-only properties — including its value-type rule: a `struct` without an explicit `[JsonConstructor]` always uses its implicit parameterless constructor, so none of its properties are constructor-bound however many public parameterized constructors it declares. Excludes polymorphic types from eligibility entirely. |
+| `RequirementRule.cs` | Defines `SiblingCondition` (one sibling name plus its OR-ed accepted values) and `RequirementRule` (one decorated member plus its AND-ed conditions), plus `NonEmptyRule` (one decorated member, no conditions). Pure data plus the `IsSatisfiedBy` / `IsRequiredFor` predicates `GraphValidator` evaluates against a materialized instance. `NonEmptyRule` carries no predicate of its own, because it is evaluated against a `JsonElement`, not an instance. |
 | `ValueMatcher.cs` | Compares a sibling's runtime value against an attribute's constant, widening the constant to the sibling's runtime type via `Convert.ChangeType` (invariantly) so an `int` argument matches a `long`/`short`/`byte`/`uint`/`nint` sibling, plus enum-aware coercion in both directions — an `int`, another enum with the same underlying value, or the enum member's *name* as a string all match an enum sibling. `CanEverMatch` answers the same question against a sibling's *declared* type, so `RequirementRuleCompiler` can reject a pairing that could never match instead of leaving a rule that quietly never fires. |
 | `SerializerFeatureGuard.cs` | Rejects the serializer configurations the design cannot model, from `CreateConverter` (deliberately not the converter's constructor, which would wrap the exception in a `TargetInvocationException`). Currently `ReferenceHandler` and `JsonObjectCreationHandling.Populate`, the latter reached reflectively because the API postdates net7.0's in-box System.Text.Json and this library uses no conditional compilation. |
 | `PresenceScanner.cs` | Collects the set of property names physically present on a `JsonElement` object, using the case sensitivity of the caller's `JsonSerializerOptions`. |
+| `EmptinessInspector.cs` | Static, one method, `IsEmpty(JsonElement)`. Judges emptiness from the payload element itself, not the materialized value: `null`, a zero-length string, a zero-element array, and a property-less object are empty, numbers and booleans never are. Does not answer absence. The caller distinguishes that itself, since the two land in different violation categories. |
 | `PlainOptionsCache.cs` | Caches, per `JsonSerializerOptions` instance (via `ConditionalWeakTable`), a clone with this library's factory removed. Materializing through the clone is what stops the converter re-entering itself. |
-| `JsonRequiredConditionallyException.cs` | Public `JsonException` subclass. `MissingProperties` holds the full list of unmet-requirement paths from one validation pass, not just the first. |
+| `JsonRequiredConditionallyException.cs` | Public `JsonException` subclass. `MissingProperties` holds the full list of unmet-requirement paths from one validation pass, not just the first. `EmptyProperties` holds the parallel list for properties that were present but carried an empty value. |
 
 ### Key Patterns
 
@@ -148,6 +151,13 @@ a fresh instance the holder had no setter to accept.
 **Presence, not non-nullness**: a rule is satisfied when the JSON property is present in the payload,
 regardless of whether its value is `null` — mirroring `[JsonRequired]`'s own semantics.
 
+`[JsonRequiredAndNotEmpty]` is the one stated exception to this pattern. It treats `null` as empty
+rather than as present, because a member that is required and not empty is not satisfied by an
+explicit null. Emptiness itself is judged from the payload's `JsonElement`, not the materialized CLR
+value, specifically so it can see through a member behind its own custom converter, at the accepted
+cost that a converter mapping a non-empty JSON representation onto an empty collection is judged
+non-empty.
+
 ### Build System
 
 Uses the ktsu.Sdk custom MSBuild SDK for standardized configuration. Key files:
@@ -169,9 +179,11 @@ against. Test files are organized by concern rather than one-to-one with source 
 - `JsonRequiredConditionally.Test/ContainmentTests.cs` — polymorphism, `Populate` and `ReferenceHandler`: what is refused and what throws
 - `JsonRequiredConditionally.Test/ConverterTests.cs` — end-to-end deserialization behavior
 - `JsonRequiredConditionally.Test/EligibilityTests.cs` — which types are claimed: decorated fields, nested collections, struct constructor binding
+- `JsonRequiredConditionally.Test/EmptinessInspectorTests.cs` — `EmptinessInspector.IsEmpty` unit tests
 - `JsonRequiredConditionally.Test/ExceptionTests.cs` — `JsonRequiredConditionallyException` construction and messages
 - `JsonRequiredConditionally.Test/NamingTests.cs` — naming policies and `[JsonPropertyName]` interaction
 - `JsonRequiredConditionally.Test/NestingTests.cs` — nested objects, arrays, and dictionaries, and path formatting
+- `JsonRequiredConditionally.Test/NotEmptyTests.cs` — `[JsonRequiredAndNotEmpty]` end-to-end, every payload shape from the semantics table against every member shape
 - `JsonRequiredConditionally.Test/PresenceScannerTests.cs` — `PresenceScanner` unit tests
 - `JsonRequiredConditionally.Test/RequirementRuleCompilerTests.cs` — `RequirementRuleCompiler` unit tests
 - `JsonRequiredConditionally.Test/RuntimeMatrixTests.cs` — asserts each leg runs on its own shared framework

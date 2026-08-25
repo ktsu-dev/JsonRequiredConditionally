@@ -3,6 +3,7 @@
 namespace ktsu.JsonRequiredConditionally.Tests;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 public enum Kind
@@ -521,4 +522,146 @@ public sealed class PopulateGuardHolder
 public sealed class GetOnlyChildHolder
 {
 	public SimpleConfig Child { get; } = new();
+}
+
+/// <summary>A decorated string member.</summary>
+public sealed class NotEmptyStringConfig
+{
+	[JsonRequiredAndNotEmpty]
+	public string? Name { get; set; }
+}
+
+/// <summary>
+/// A type whose only decorated member is a plain public field carrying
+/// <see cref="JsonRequiredAndNotEmptyAttribute"/>, so it is invisible to a probe configured with
+/// <c>IncludeFields = false</c>.
+/// </summary>
+public sealed class NotEmptyFieldDecoratedConfig
+{
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture specifically exercises a plain public field as the decorated member, which requires an actual field.")]
+	[JsonRequiredAndNotEmpty]
+	public string? Name;
+}
+
+/// <summary>A decorated list member.</summary>
+public sealed class NotEmptyListConfig
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[JsonRequiredAndNotEmpty]
+	public List<string>? Items { get; set; }
+}
+
+/// <summary>A decorated set member.</summary>
+public sealed class NotEmptySetConfig
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[JsonRequiredAndNotEmpty]
+	public HashSet<string>? Tags { get; set; }
+}
+
+/// <summary>A decorated array member.</summary>
+public sealed class NotEmptyArrayConfig
+{
+	[SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable array property.")]
+	[JsonRequiredAndNotEmpty]
+	public string[]? Values { get; set; }
+}
+
+/// <summary>A decorated dictionary member, which arrives as a JSON object.</summary>
+public sealed class NotEmptyDictionaryConfig
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[JsonRequiredAndNotEmpty]
+	public Dictionary<string, string>? Lookup { get; set; }
+}
+
+/// <summary>A decorated non-nullable int: present is always non-empty.</summary>
+public sealed class NotEmptyIntConfig
+{
+	[JsonRequiredAndNotEmpty]
+	public int Count { get; set; }
+}
+
+/// <summary>A decorated nullable int: an explicit null is empty.</summary>
+public sealed class NotEmptyNullableIntConfig
+{
+	[JsonRequiredAndNotEmpty]
+	public int? Count { get; set; }
+}
+
+/// <summary>A decorated member renamed in the payload.</summary>
+public sealed class NotEmptyRenamedConfig
+{
+	[JsonPropertyName("tuning_name")]
+	[JsonRequiredAndNotEmpty]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Both attributes on one member, to pin deduplication of an absent path.</summary>
+public sealed class NotEmptyAndConditionalConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	[JsonRequiredAndNotEmpty]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A holder whose only decorated member sits one level down.</summary>
+public sealed class NotEmptyHolder
+{
+	public NotEmptyStringConfig? Child { get; set; }
+}
+
+/// <summary>A holder whose decorated member is reachable only through a collection.</summary>
+public sealed class NotEmptySequenceHolder
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<NotEmptyStringConfig>? Children { get; set; }
+}
+
+/// <summary>A holder whose decorated member is reachable only through a dictionary.</summary>
+public sealed class NotEmptyDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Dictionary<string, NotEmptyStringConfig>? Lookup { get; set; }
+}
+
+/// <summary>A holder whose decorated member is reachable only through nested collections.</summary>
+public sealed class NotEmptyNestedSequenceHolder
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<List<NotEmptyStringConfig>>? Grid { get; set; }
+
+	[SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable array property.")]
+	public NotEmptyStringConfig[][]? Jagged { get; set; }
+}
+
+/// <summary>A string-like type behind its own converter, whose CLR shape the walk cannot see.</summary>
+public sealed record class Label(string Value);
+
+/// <summary>Serializes <see cref="Label"/> as a bare JSON string.</summary>
+public sealed class LabelJsonConverter : JsonConverter<Label>
+{
+	public override Label Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+		new(reader.GetString() ?? string.Empty);
+
+	public override void Write(Utf8JsonWriter writer, Label value, JsonSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(writer);
+		ArgumentNullException.ThrowIfNull(value);
+
+		writer.WriteStringValue(value.Value);
+	}
+}
+
+/// <summary>A decorated member whose type carries its own converter.</summary>
+public sealed class NotEmptyConvertedConfig
+{
+	[JsonConverter(typeof(LabelJsonConverter))]
+	[JsonRequiredAndNotEmpty]
+	public Label? Label { get; set; }
 }
