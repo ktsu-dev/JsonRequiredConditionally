@@ -28,8 +28,8 @@ dotnet test --filter "FullyQualifiedName~ConverterTests.AbsentRequiredPropertyTh
 # Run tests in a specific test class
 dotnet test --filter "FullyQualifiedName~NestingTests"
 
-# Run one leg of the matrix only
-dotnet test --framework net7.0
+# Run one leg of the matrix only (the test matrix is currently a single net10.0 leg)
+dotnet test --framework net10.0
 
 # Create NuGet package
 dotnet pack --configuration Release --output ./staging
@@ -172,9 +172,11 @@ supported — their shared-framework version of System.Text.Json predates `JsonS
 
 ### Test Structure
 
-Tests use MSTest.Sdk and are multi-targeted to `net10.0;net9.0;net8.0;net7.0`, so each in-box
-System.Text.Json version the library ships against is actually exercised rather than merely compiled
-against. Test files are organized by concern rather than one-to-one with source files:
+Tests use MSTest.Sdk and currently run as a **single `net10.0` leg**, so only the .NET 10 in-box
+System.Text.Json is actually exercised; the `net9.0`, `net8.0` and `net7.0` assets the library ships
+are compiled but not run. That is a known gap, not the intent — see the matrix notes below and
+ktsu-dev/JsonRequiredConditionally#30. Test files are organized by concern rather than one-to-one
+with source files:
 - `JsonRequiredConditionally.Test/AttributeTests.cs` — attribute construction and metadata
 - `JsonRequiredConditionally.Test/ContainmentTests.cs` — polymorphism, `Populate` and `ReferenceHandler`: what is refused and what throws
 - `JsonRequiredConditionally.Test/ConverterTests.cs` — end-to-end deserialization behavior
@@ -186,7 +188,7 @@ against. Test files are organized by concern rather than one-to-one with source 
 - `JsonRequiredConditionally.Test/NotEmptyTests.cs` — `[JsonRequiredAndNotEmpty]` end-to-end, every payload shape from the semantics table against every member shape
 - `JsonRequiredConditionally.Test/PresenceScannerTests.cs` — `PresenceScanner` unit tests
 - `JsonRequiredConditionally.Test/RequirementRuleCompilerTests.cs` — `RequirementRuleCompiler` unit tests
-- `JsonRequiredConditionally.Test/RuntimeMatrixTests.cs` — asserts each leg runs on its own shared framework
+- `JsonRequiredConditionally.Test/RuntimeMatrixTests.cs` — asserts each leg runs on its own shared framework, and that every runnable library target is either covered by a leg or recorded as a deliberate gap
 - `JsonRequiredConditionally.Test/SemanticsTests.cs` — presence-vs-nullness, default-sibling, and other documented semantics
 - `JsonRequiredConditionally.Test/SerializerCapabilities.cs` — runtime probes for System.Text.Json features that differ across versions
 - `JsonRequiredConditionally.Test/SiblingMatchingTests.cs` — widened and enum-name sibling matching, and unconvertible pairings
@@ -194,19 +196,41 @@ against. Test files are organized by concern rather than one-to-one with source 
 - `JsonRequiredConditionally.Test/ValueMatcherTests.cs` — `ValueMatcher` unit tests
 - `JsonRequiredConditionally.Test/TestModels.cs` — shared model types used across the above
 
-Three things about the matrix are easy to break and were each a real trap:
+The matrix lists live in one place, `Directory.Build.props`, and are baked into the test assembly as
+`AssemblyMetadata` so `RuntimeMatrixTests` can assert them against each other. Four lists: what the
+library ships and could be run (`LibraryRunnableTargetFrameworks`), what it ships that cannot host a
+.NET leg at all (`LibraryPackageBoundTargetFrameworks`), what the tests actually run
+(`TestTargetFrameworks`), and every runnable target deliberately left uncovered, each with its
+reason (`UncoveredRunnableTargetFrameworks`).
 
-1. **ktsu.Sdk pins `RuntimeFrameworkVersion` to `10.0.0` for every target framework.** Left alone,
-   all four legs run on the .NET 10 shared framework and load System.Text.Json 10, so the matrix
-   tests nothing but compile compatibility. The test project clears it and sets
-   `RollForward=LatestPatch`; `RuntimeMatrixTests` fails the build if that is ever lost.
-2. **Running the matrix needs the .NET 7, 8, 9 and 10 runtimes installed.** CI installs them via
-   `actions/setup-dotnet`. Locally, a leg whose runtime is missing fails to launch outright.
-3. **MSTest.Sdk 4.x has no `net7.0` asset**, so the test project pins MSTest.Sdk `3.11.1` rather than
-   the `4.3.3` in `global.json`. Dropping that pin silently drops net7.0 from the matrix.
+**The point of that arrangement is that a gap cannot be silent.** A runnable library target with no
+leg and no recorded reason fails the build. Adding a target framework to the library without either
+testing it or recording why not is therefore a build error rather than something to notice later.
 
-Not covered: the `netstandard2.0`/`netstandard2.1` assets, which bind System.Text.Json from NuGet.
-Reaching those needs a `net472` test leg — a genuine follow-up.
+Four things about the matrix are easy to break, and three of them already happened:
+
+1. **ktsu.Sdk clears `TargetFrameworks` for every test project.** `Sdk/Sdk.targets` has
+   `<PropertyGroup Condition="$(IsTestProject) == 'true'"><TargetFrameworks></TargetFrameworks>`,
+   and it is imported *after* the project body and after `Directory.Build.targets`. So a ktsu test
+   project cannot multi-target from its own repository — measured both ways, each evaluating back to
+   empty. **This is why the matrix is one leg**, and restoring more needs a change in ktsu.Sdk.
+2. **ktsu.Sdk pins `RuntimeFrameworkVersion` to `10.0.0` for every target framework.** Left alone,
+   every leg would run on the .NET 10 shared framework and load System.Text.Json 10, so a restored
+   matrix would test compile compatibility and nothing else. `RuntimeMatrixTests` fails if a leg is
+   running on a framework other than the one it was compiled for, which is what catches this. The
+   override that used to clear it is no longer in the test project; it will need to come back
+   alongside any restored matrix.
+3. **MSTest.Sdk 4.x has no `net7.0` asset.** `global.json` carries MSTest.Sdk `4.4.1` with no
+   project-level pin, so covering `net7.0` would mean restoring a `3.11.1` pin. `net7.0` is also out
+   of support and is no longer in ktsu.Sdk's own default target framework list, while the library
+   still ships a `net7.0` asset — so whether to keep shipping it is a separate decision from whether
+   it can be tested.
+4. **Running a restored matrix needs the matching runtimes installed.** CI installs `8.0.x`, `9.0.x`
+   and `10.x` via `actions/setup-dotnet` — note it does not install `7.0.x`. Locally, a leg whose
+   runtime is missing fails to launch outright.
+
+Not covered, and not coverable by a .NET leg: the `netstandard2.0`/`netstandard2.1` assets, which
+bind System.Text.Json from NuGet. Reaching those needs a `net472` leg — ktsu-dev/JsonRequiredConditionally#14.
 
 `InternalsVisibleTo("ktsu.JsonRequiredConditionally.Test")` in `AssemblyInfo.cs` lets the test project
 exercise the internal pipeline types (`GraphValidator`, `RequirementRuleCompiler`, `RequirementRule`,

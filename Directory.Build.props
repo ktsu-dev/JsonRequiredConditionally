@@ -1,0 +1,64 @@
+<Project>
+
+  <!--
+    The single source of truth for the target-framework matrix.
+
+    These lists exist here, rather than inline in each project, so that what the test matrix
+    actually covers can be compared against what the library actually ships. Declaring them in
+    one place is what makes a gap a build failure instead of a silent hole: they are baked into
+    the test assembly as AssemblyMetadata and asserted against each other by RuntimeMatrixTests,
+    so a runnable library target with no leg and no recorded reason fails the build.
+
+    See ktsu-dev/JsonRequiredConditionally#30 for the regression that motivated this.
+  -->
+  <PropertyGroup>
+
+    <!--
+      Library targets whose shared framework could host a test leg. Each binds a different in-box
+      System.Text.Json, which is the whole reason a matrix is wanted here.
+    -->
+    <LibraryRunnableTargetFrameworks>net10.0;net9.0;net8.0;net7.0</LibraryRunnableTargetFrameworks>
+
+    <!--
+      Library targets that bind System.Text.Json from NuGet rather than from a shared framework.
+      These cannot host a .NET (Core) test leg at all; reaching them needs a net472 leg, tracked
+      in ktsu-dev/JsonRequiredConditionally#14.
+    -->
+    <LibraryPackageBoundTargetFrameworks>netstandard2.0;netstandard2.1</LibraryPackageBoundTargetFrameworks>
+
+    <!--
+      The legs the test project actually builds and runs.
+
+      This is one leg, and it cannot currently be more. ktsu.Sdk's Sdk.targets clears
+      TargetFrameworks for every project with IsTestProject=true:
+
+        <PropertyGroup Condition="$(IsTestProject) == 'true'">
+          <TargetFrameworks></TargetFrameworks>
+
+      Sdk.targets is imported after the project body and after Directory.Build.targets, so the
+      value cannot be restored from this repository. Measured: setting TargetFrameworks in the
+      test csproj, and again in a Directory.Build.targets, both evaluate back to empty. Covering
+      more than one leg needs a change in ktsu.Sdk, not here.
+    -->
+    <TestTargetFrameworks>net10.0</TestTargetFrameworks>
+
+    <!--
+      Runnable library targets with no test leg. Every entry must carry its reason, because
+      RuntimeMatrixTests requires each runnable target to be either covered or listed here.
+      This list is the only way a gap can exist without failing the build.
+
+      net9.0, net8.0: no leg is constructible while ktsu.Sdk forces test projects to a single
+      target framework, as above. This is step 1 of ktsu-dev/JsonRequiredConditionally#30 and is
+      blocked on the SDK.
+
+      net7.0: additionally out of support (EOL May 2024) and no longer in ktsu.Sdk's own default
+      target framework list, which is net10.0;net9.0;net8.0;netstandard2.0;netstandard2.1. The
+      library still ships a net7.0 asset, so whether to keep shipping it is a separate
+      maintainer decision from whether it can be tested. CI reflects the same picture already:
+      .github/workflows/dotnet.yml installs 8.0.x, 9.0.x and 10.x, but not 7.0.x.
+    -->
+    <UncoveredRunnableTargetFrameworks>net9.0;net8.0;net7.0</UncoveredRunnableTargetFrameworks>
+
+  </PropertyGroup>
+
+</Project>

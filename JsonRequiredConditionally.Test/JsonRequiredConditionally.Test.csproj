@@ -3,9 +3,27 @@
   <Sdk Name="ktsu.Sdk" />
 
   <PropertyGroup>
+    <!--
+      Deliberately a single target framework, and not a choice made here: ktsu.Sdk's Sdk.targets
+      clears TargetFrameworks for every IsTestProject, and is imported after this file, so the
+      value cannot be set from this repository. See Directory.Build.props, where the matrix lists
+      and the reasons for each gap live, and ktsu-dev/JsonRequiredConditionally#30.
+    -->
     <TargetFramework>net10.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Baked into the test assembly so a leg can see the shape of the whole matrix. A per-leg test
+      cannot observe its siblings, so the expected set has to arrive from build configuration;
+      comparing these lists is what turns a silent gap into a failing test.
+    -->
+    <AssemblyMetadata Include="LibraryRunnableTargetFrameworks" Value="$(LibraryRunnableTargetFrameworks)" />
+    <AssemblyMetadata Include="LibraryPackageBoundTargetFrameworks" Value="$(LibraryPackageBoundTargetFrameworks)" />
+    <AssemblyMetadata Include="TestTargetFrameworks" Value="$(TestTargetFrameworks)" />
+    <AssemblyMetadata Include="UncoveredRunnableTargetFrameworks" Value="$(UncoveredRunnableTargetFrameworks)" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\JsonRequiredConditionally\JsonRequiredConditionally.csproj" />
