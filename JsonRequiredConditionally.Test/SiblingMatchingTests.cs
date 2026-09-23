@@ -21,7 +21,7 @@ public class SiblingMatchingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<LongSiblingConfig>("""{"Count":1}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Detail" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Detail" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -75,8 +75,8 @@ public class SiblingMatchingTests
 			() => JsonSerializer.Deserialize<FractionalSiblingConfig>(
 				"""{"Count":2}""", CreateOptions()));
 
-		StringAssert.Contains(exception.Message, nameof(FractionalSiblingConfig));
-		StringAssert.Contains(exception.Message, nameof(FractionalSiblingConfig.Count));
+		Assert.Contains(nameof(FractionalSiblingConfig), exception.Message);
+		Assert.Contains(nameof(FractionalSiblingConfig.Count), exception.Message);
 	}
 
 	[TestMethod]
@@ -101,8 +101,8 @@ public class SiblingMatchingTests
 			() => JsonSerializer.Deserialize<UnconvertibleSiblingConfig>(
 				"""{"Id":"00000000-0000-0000-0000-000000000000"}""", CreateOptions()));
 
-		StringAssert.Contains(exception.Message, nameof(UnconvertibleSiblingConfig));
-		StringAssert.Contains(exception.Message, nameof(UnconvertibleSiblingConfig.Id));
-		StringAssert.Contains(exception.Message, nameof(Guid));
+		Assert.Contains(nameof(UnconvertibleSiblingConfig), exception.Message);
+		Assert.Contains(nameof(UnconvertibleSiblingConfig.Id), exception.Message);
+		Assert.Contains(nameof(Guid), exception.Message);
 	}
 }

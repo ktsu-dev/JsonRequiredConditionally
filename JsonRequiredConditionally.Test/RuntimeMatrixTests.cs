@@ -83,9 +83,9 @@ public class RuntimeMatrixTests
 			.GetCustomAttributes<AssemblyMetadataAttribute>()
 			.Where(attribute => attribute.Key == key)];
 
-		Assert.AreEqual(
+		Assert.HasCount(
 			1,
-			matching.Length,
+			matching,
 			$"Expected exactly one AssemblyMetadata entry for '{key}', found {matching.Length}. The test project must forward every matrix list from Directory.Build.props, or this guard cannot see the matrix it is checking.");
 
 		return [.. (matching[0].Value ?? string.Empty)
@@ -99,12 +99,12 @@ public class RuntimeMatrixTests
 		List<string> covered = MatrixList("TestTargetFrameworks");
 		List<string> uncovered = MatrixList("UncoveredRunnableTargetFrameworks");
 
-		Assert.IsTrue(runnable.Count > 0, "LibraryRunnableTargetFrameworks is empty, so there is no matrix to check.");
+		Assert.IsNotEmpty(runnable, "LibraryRunnableTargetFrameworks is empty, so there is no matrix to check.");
 
 		List<string> unaccountedFor = [.. runnable.Where(framework => !covered.Contains(framework) && !uncovered.Contains(framework))];
 
-		Assert.IsTrue(
-			unaccountedFor.Count == 0,
+		Assert.IsEmpty(
+			unaccountedFor,
 			$"The library ships [{string.Join(", ", runnable)}] but [{string.Join(", ", unaccountedFor)}] has no test leg and is not recorded in UncoveredRunnableTargetFrameworks. Either add the leg to TestTargetFrameworks or record the gap, with its reason, in Directory.Build.props.");
 	}
 
@@ -116,8 +116,8 @@ public class RuntimeMatrixTests
 
 		List<string> contradictory = [.. covered.Where(uncovered.Contains)];
 
-		Assert.IsTrue(
-			contradictory.Count == 0,
+		Assert.IsEmpty(
+			contradictory,
 			$"[{string.Join(", ", contradictory)}] is listed as both a test leg and a recorded gap, so the two lists disagree about what the matrix covers.");
 	}
 
@@ -129,8 +129,8 @@ public class RuntimeMatrixTests
 
 		List<string> stale = [.. uncovered.Where(framework => !runnable.Contains(framework))];
 
-		Assert.IsTrue(
-			stale.Count == 0,
+		Assert.IsEmpty(
+			stale,
 			$"[{string.Join(", ", stale)}] is recorded as an uncovered gap but the library no longer targets it, so the exemption outlived the target it excused and should be deleted.");
 	}
 
@@ -142,8 +142,8 @@ public class RuntimeMatrixTests
 
 		List<string> orphaned = [.. covered.Where(framework => !runnable.Contains(framework))];
 
-		Assert.IsTrue(
-			orphaned.Count == 0,
+		Assert.IsEmpty(
+			orphaned,
 			$"[{string.Join(", ", orphaned)}] is a test leg for a framework the library does not ship, so it is testing a configuration no consumer can be in.");
 	}
 
@@ -153,8 +153,8 @@ public class RuntimeMatrixTests
 		List<string> covered = MatrixList("TestTargetFrameworks");
 		string thisLeg = $"net{CompiledMajorVersion}.0";
 
-		Assert.IsTrue(
-			covered.Contains(thisLeg),
+		Assert.Contains(
+			thisLeg, covered,
 			$"This leg reports itself as {thisLeg}, which is not in TestTargetFrameworks [{string.Join(", ", covered)}]. The declared matrix and the legs actually being built have diverged.");
 	}
 
@@ -164,12 +164,12 @@ public class RuntimeMatrixTests
 		List<string> packageBound = MatrixList("LibraryPackageBoundTargetFrameworks");
 		List<string> covered = MatrixList("TestTargetFrameworks");
 
-		Assert.IsTrue(packageBound.Count > 0, "LibraryPackageBoundTargetFrameworks is empty, but the library ships netstandard assets.");
+		Assert.IsNotEmpty(packageBound, "LibraryPackageBoundTargetFrameworks is empty, but the library ships netstandard assets.");
 
 		List<string> impossible = [.. covered.Where(packageBound.Contains)];
 
-		Assert.IsTrue(
-			impossible.Count == 0,
+		Assert.IsEmpty(
+			impossible,
 			$"[{string.Join(", ", impossible)}] is listed as a test leg, but a netstandard target has no shared framework to run on. Exercising those assets needs a net472 leg, tracked in ktsu-dev/JsonRequiredConditionally#14.");
 	}
 }

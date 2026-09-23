@@ -26,7 +26,7 @@ public class EligibilityTests
 			() => JsonSerializer.Deserialize<FieldDecoratedConfig>(
 				"""{"Kind":"Advanced"}""", CreateOptions(includeFields: true)));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -56,7 +56,7 @@ public class EligibilityTests
 			() => JsonSerializer.Deserialize<NotEmptyFieldDecoratedConfig>(
 				"""{}""", CreateOptions(includeFields: true)));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Name" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -86,7 +86,7 @@ public class EligibilityTests
 			() => JsonSerializer.Deserialize<GridConfig>(
 				"""{"Grid":[[{"Kind":"Basic"},{"Kind":"Advanced"}]]}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Grid[0][1].Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Grid[0][1].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -96,7 +96,7 @@ public class EligibilityTests
 			() => JsonSerializer.Deserialize<BucketConfig>(
 				"""{"Buckets":{"a":[{"Kind":"Advanced"}]}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Buckets.a[0].Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Buckets.a[0].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]

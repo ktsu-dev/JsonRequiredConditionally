@@ -42,7 +42,7 @@ public class NamingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<SimpleConfig>("""{"kind":"Advanced"}""", options));
 
-		CollectionAssert.AreEqual(new List<string> { "tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "tuning" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -65,7 +65,7 @@ public class NamingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<RenamedConfig>("""{"kind":"Advanced"}""", options));
 
-		CollectionAssert.AreEqual(new List<string> { "tuning_value" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "tuning_value" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -97,7 +97,7 @@ public class NamingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<NotEmptyRenamedConfig>(/*lang=json,strict*/ """{"tuning_name":""}""", options));
 
-		CollectionAssert.AreEqual(new List<string> { "tuning_name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "tuning_name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -112,7 +112,7 @@ public class NamingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"name":""}""", options));
 
-		CollectionAssert.AreEqual(new List<string> { "name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -127,6 +127,6 @@ public class NamingTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"NAME":""}""", options));
 
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.EmptyProperties]);
 	}
 }

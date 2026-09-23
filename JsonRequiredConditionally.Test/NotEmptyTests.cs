@@ -24,7 +24,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyStringConfig>(/*lang=json,strict*/ "{}");
 
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.MissingProperties]);
 		Assert.IsEmpty(exception.EmptyProperties);
 	}
 
@@ -34,7 +34,7 @@ public class NotEmptyTests
 		JsonRequiredConditionallyException exception = Throws<NotEmptyStringConfig>(/*lang=json,strict*/ """{"Name":null}""");
 
 		Assert.IsEmpty(exception.MissingProperties);
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -42,7 +42,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyStringConfig>(/*lang=json,strict*/ """{"Name":""}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -70,7 +70,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyListConfig>(/*lang=json,strict*/ """{"Items":[]}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Items" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Items" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -98,7 +98,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptySetConfig>(/*lang=json,strict*/ """{"Tags":[]}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Tags" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tags" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -106,7 +106,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyArrayConfig>(/*lang=json,strict*/ """{"Values":[]}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Values" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Values" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -114,7 +114,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyDictionaryConfig>(/*lang=json,strict*/ """{"Lookup":{}}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Lookup" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Lookup" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -132,7 +132,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyListConfig>(/*lang=json,strict*/ """{"Items":null}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Items" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Items" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -140,7 +140,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyDictionaryConfig>(/*lang=json,strict*/ """{"Lookup":null}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Lookup" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Lookup" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -148,7 +148,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyConvertedConfig>(/*lang=json,strict*/ """{"Label":null}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Label" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Label" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -156,7 +156,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyConvertedConfig>(/*lang=json,strict*/ """{"Label":""}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Label" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Label" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -184,7 +184,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyIntConfig>(/*lang=json,strict*/ "{}");
 
-		CollectionAssert.AreEqual(new List<string> { "Count" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Count" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -192,7 +192,7 @@ public class NotEmptyTests
 	{
 		JsonRequiredConditionallyException exception = Throws<NotEmptyNullableIntConfig>(/*lang=json,strict*/ """{"Count":null}""");
 
-		CollectionAssert.AreEqual(new List<string> { "Count" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Count" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]

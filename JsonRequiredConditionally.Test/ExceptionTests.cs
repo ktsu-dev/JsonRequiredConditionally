@@ -20,7 +20,7 @@ public class ExceptionTests
 	{
 		JsonRequiredConditionallyException exception = new(["tuning", "host"]);
 
-		CollectionAssert.AreEqual(new List<string> { "tuning", "host" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "tuning", "host" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -28,8 +28,8 @@ public class ExceptionTests
 	{
 		JsonRequiredConditionallyException exception = new(["tuning", "host"]);
 
-		StringAssert.Contains(exception.Message, "tuning");
-		StringAssert.Contains(exception.Message, "host");
+		Assert.Contains("tuning", exception.Message);
+		Assert.Contains("host", exception.Message);
 	}
 
 	[TestMethod]
@@ -58,7 +58,7 @@ public class ExceptionTests
 		supplied.Add("host");
 		supplied[0] = "mutated";
 
-		CollectionAssert.AreEqual(new List<string> { "tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "tuning" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -76,7 +76,7 @@ public class ExceptionTests
 	{
 		JsonRequiredConditionallyException exception = new(["tuning"], ["items", "tags"]);
 
-		CollectionAssert.AreEqual(new List<string> { "items", "tags" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "items", "tags" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -100,8 +100,8 @@ public class ExceptionTests
 	{
 		JsonRequiredConditionallyException exception = new(["tuning"], ["items"]);
 
-		StringAssert.Contains(exception.Message, "tuning");
-		StringAssert.Contains(exception.Message, "items");
+		Assert.Contains("tuning", exception.Message);
+		Assert.Contains("items", exception.Message);
 	}
 
 	[TestMethod]
@@ -109,7 +109,7 @@ public class ExceptionTests
 	{
 		JsonRequiredConditionallyException exception = new([], ["items"]);
 
-		StringAssert.Contains(exception.Message, "items");
+		Assert.Contains("items", exception.Message);
 		Assert.IsFalse(exception.Message.Contains("absent", StringComparison.Ordinal));
 	}
 

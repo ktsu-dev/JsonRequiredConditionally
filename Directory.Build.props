@@ -29,41 +29,44 @@
     <!--
       The legs the test project actually builds and runs.
 
-      One leg today, and the reason is no longer the SDK. Up to ktsu.Sdk 2.30.1, Sdk.targets
-      cleared TargetFrameworks for every IsTestProject unconditionally, and is imported after
-      both the project body and Directory.Build.targets, so a test project could not multi-target
-      at all. 2.31.1 made that clear conditional on the value still being the SDK's own default,
-      so an explicit override now survives.
+      These are exactly the runtimes CI installs — .github/workflows/dotnet.yml sets up 8.0.x,
+      9.0.x and 10.x — so every leg named here can actually be launched there. A leg whose runtime
+      is missing fails to launch outright rather than skipping, so this list and that setup-dotnet
+      list have to move together.
 
-      What blocks it now is measured and different: building the test project for
-      net10.0;net9.0;net8.0 produces 204 analyzer errors, all on the net10.0 leg, all in
-      pre-existing test files, across MSTEST0037, MSTEST0046 and MSTEST0068. The same files
-      compile clean as a single leg with the same MSTest.Sdk 4.4.1, the same NoWarn and the same
-      IsTestProject, so the violations are latent rather than new. Clearing them is a mechanical
-      change across about ten test files, and suppressing the three rules is a policy decision
-      for a repository that runs analyzers as errors. Either way it is its own change, not a
-      rider on this one. Step 1 of ktsu-dev/JsonRequiredConditionally#30.
+      Three things had to clear before this could be more than net10.0, and all three have:
+
+      1. Up to ktsu.Sdk 2.30.1, Sdk.targets cleared TargetFrameworks for every IsTestProject
+         unconditionally, and is imported after both the project body and Directory.Build.targets,
+         so a test project could not multi-target at all. 2.31.1 made that clear conditional on the
+         value still being the SDK's own default, so an explicit override now survives.
+      2. Building for more than one leg surfaced 204 latent analyzer violations (MSTEST0037,
+         MSTEST0046, MSTEST0068) in pre-existing test files. Those are now fixed rather than
+         suppressed. They are invisible on a single leg — the MSTest analyzers do not run there at
+         all, even with the rules raised to error in .editorconfig — so the only thing that guards
+         them is building the matrix, which CI now does.
+      3. The test host's own dependencies put System.Text.Json 10 in every leg's output, which
+         would have left the restored matrix cosmetic. See the test project for how that is
+         handled, and for the two alternatives that were rejected.
     -->
-    <TestTargetFrameworks>net10.0</TestTargetFrameworks>
+    <TestTargetFrameworks>net10.0;net9.0;net8.0</TestTargetFrameworks>
 
     <!--
       Runnable library targets with no test leg. Every entry must carry its reason, because
       RuntimeMatrixTests requires each runnable target to be either covered or listed here.
       This list is the only way a gap can exist without failing the build.
 
-      net9.0, net8.0: constructible as of ktsu.Sdk 2.31.1, but blocked on the 204 latent
-      analyzer violations described above, which surface only under multi-targeting.
-
-      net7.0: blocked by the same thing, and additionally by MSTest.Sdk. MSTest.Sdk 4.x ships no
-      net7.0 asset, so a net7.0 leg means restoring the
-      MSTest.Sdk 3.11.1 pin that global.json's 4.4.1 replaced. net7.0 is also out of support
+      net7.0: blocked by MSTest.Sdk. MSTest.Sdk 4.x ships no net7.0 asset, so a net7.0 leg means
+      restoring the MSTest.Sdk 3.11.1 pin that global.json's 4.4.1 replaced — a pin the whole
+      repository would then build against, which is a maintainer's call rather than a detail of
+      restoring the matrix. net7.0 is also out of support
       (EOL May 2024) and is no longer in ktsu.Sdk's own default target framework list, which is
       net10.0;net9.0;net8.0;netstandard2.0;netstandard2.1, while this library still ships a
       net7.0 asset. Whether to keep shipping it is a separate maintainer decision from whether
       it can be tested, so the asset is left alone and the gap recorded here. CI reflects the
       same picture: .github/workflows/dotnet.yml installs 8.0.x, 9.0.x and 10.x, but not 7.0.x.
     -->
-    <UncoveredRunnableTargetFrameworks>net9.0;net8.0;net7.0</UncoveredRunnableTargetFrameworks>
+    <UncoveredRunnableTargetFrameworks>net7.0</UncoveredRunnableTargetFrameworks>
 
   </PropertyGroup>
 
