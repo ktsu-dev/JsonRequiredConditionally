@@ -1,6 +1,7 @@
-## v1.2.11 (patch)
+## v1.2.12 (patch)
 
-Changes since v1.2.10:
+Changes since v1.2.11:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- fix: reject an attribute constant that only rounds onto the sibling value [patch] ([@Claude](https://github.com/Claude))
+- fix: stop mispairing array elements with reordering collections [patch] ([@Claude](https://github.com/Claude))
 
