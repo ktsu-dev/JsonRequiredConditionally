@@ -115,6 +115,34 @@ public sealed class CollectionConfig
 	public Dictionary<string, SimpleConfig> Lookup { get; set; } = [];
 }
 
+/// <summary>Holds decorated children in a collection that yields them in reverse payload order.</summary>
+public sealed class StackConfig
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Stack<SimpleConfig> Items { get; set; } = new();
+}
+
+/// <summary>Holds decorated children in a collection that yields them in comparer order.</summary>
+public sealed class SortedSetConfig
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public SortedSet<SortableConfig> Items { get; set; } = [];
+}
+
+/// <summary>A decorated child ordered by a member unrelated to its payload position.</summary>
+[SuppressMessage("Design", "CA1036:Override methods on comparable types", Justification = "Test fixture implements IComparable only to give SortedSet a deterministic order that differs from payload order.")]
+public sealed class SortableConfig : IComparable<SortableConfig>
+{
+	public int Rank { get; set; }
+
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public int CompareTo(SortableConfig? other) => other is null ? 1 : Rank.CompareTo(other.Rank);
+}
+
 /// <summary>Mutually recursive with <see cref="NodeB"/>.</summary>
 public sealed class NodeA
 {
@@ -491,6 +519,24 @@ public sealed class UnconvertibleSiblingConfig
 	public Guid Id { get; set; }
 
 	[JsonRequiredIfSiblingIs(nameof(Id), 1)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>An <c>int</c> sibling compared against a constant no <c>int</c> can equal.</summary>
+public sealed class FractionalSiblingConfig
+{
+	public int Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 2.4)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>An <c>int</c> sibling compared against a whole constant written as a <c>double</c>.</summary>
+public sealed class WholeDoubleSiblingConfig
+{
+	public int Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 2.0)]
 	public string? Detail { get; set; }
 }
 

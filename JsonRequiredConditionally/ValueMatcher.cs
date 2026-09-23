@@ -138,6 +138,9 @@ internal static class ValueMatcher
 	/// <see cref="IntPtr"/> and <see cref="UIntPtr"/> are handled explicitly because neither
 	/// implements <see cref="IConvertible"/>, so <see cref="Convert.ChangeType(object, Type, IFormatProvider)"/>
 	/// alone would reject an <c>nint</c> sibling compared against an ordinary integer constant.
+	/// <para>
+	/// Every conversion is required to preserve the value; see <see cref="PreservesValue"/>.
+	/// </para>
 	/// </remarks>
 	private static bool TryWiden(object value, Type targetType, out object? widened)
 	{
@@ -154,21 +157,28 @@ internal static class ValueMatcher
 		{
 			// `checked` so that a constant outside the platform's pointer range surfaces as an
 			// OverflowException -- caught below and reported as "cannot convert" -- rather than
-			// silently wrapping into a value that happens to match.
+			// silently wrapping into a value that happens to match. Neither pointer type is
+			// IConvertible, so each round-trips through its integer form rather than itself.
 			if (targetType == typeof(IntPtr))
 			{
-				widened = checked((IntPtr)Convert.ToInt64(value, CultureInfo.InvariantCulture));
-				return true;
+				IntPtr pointer = checked((IntPtr)Convert.ToInt64(value, CultureInfo.InvariantCulture));
+
+				widened = PreservesValue(value, (long)pointer) ? pointer : null;
+				return widened is not null;
 			}
 
 			if (targetType == typeof(UIntPtr))
 			{
-				widened = checked((UIntPtr)Convert.ToUInt64(value, CultureInfo.InvariantCulture));
-				return true;
+				UIntPtr pointer = checked((UIntPtr)Convert.ToUInt64(value, CultureInfo.InvariantCulture));
+
+				widened = PreservesValue(value, (ulong)pointer) ? pointer : null;
+				return widened is not null;
 			}
 
-			widened = Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
-			return true;
+			object converted = Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+
+			widened = PreservesValue(value, converted) ? converted : null;
+			return widened is not null;
 		}
 		catch (InvalidCastException)
 		{
@@ -190,5 +200,35 @@ internal static class ValueMatcher
 			widened = null;
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// Determines whether a conversion kept the value it started from.
+	/// </summary>
+	/// <param name="original">The value that was converted.</param>
+	/// <param name="converted">The result of converting it.</param>
+	/// <returns>True when converting back yields the original value.</returns>
+	/// <remarks>
+	/// <see cref="Convert"/> narrows by rounding rather than by refusing, so a fractional constant
+	/// compared against an integral sibling would otherwise become a whole number and match a
+	/// sibling value it does not equal -- every <c>int</c> sibling holding 2 would satisfy a rule
+	/// written against 2.4. Requiring the original value back rejects that, and any other narrowing
+	/// that silently loses information, while leaving an exact widening admissible: 1 against a
+	/// <c>long</c> sibling, "5" against an <c>int</c> one, and 2.0 against an <c>int</c> one all
+	/// round-trip unchanged.
+	/// </remarks>
+	private static bool PreservesValue(object original, object converted)
+	{
+		Type originalType = original.GetType();
+
+		if (originalType.IsEnum)
+		{
+			// Convert.ChangeType cannot target an enum type, and an enum value is exactly its
+			// underlying integer, so the round-trip is compared there instead.
+			originalType = Enum.GetUnderlyingType(originalType);
+			original = Convert.ChangeType(original, originalType, CultureInfo.InvariantCulture);
+		}
+
+		return Convert.ChangeType(converted, originalType, CultureInfo.InvariantCulture).Equals(original);
 	}
 }
