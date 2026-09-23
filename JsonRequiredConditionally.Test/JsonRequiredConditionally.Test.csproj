@@ -4,17 +4,33 @@
 
   <PropertyGroup>
     <!--
-      A single leg. Directory.Build.props holds the matrix lists and the reason for each gap,
-      and RuntimeMatrixTests asserts them against each other.
-
-      TargetFramework is set explicitly rather than left to TargetFrameworks: as of ktsu.Sdk
-      2.31.1, Sdk.targets clears TargetFrameworks when it still equals the SDK's own test
-      default, and that default is net10.0 — so writing net10.0 here would compare equal and be
-      cleared, leaving nothing behind. Whatever restores the matrix replaces both lines, and
-      will also need the RuntimeFrameworkVersion override described in CLAUDE.md.
+      The legs come from Directory.Build.props, which holds the matrix lists and the reason for
+      each gap; RuntimeMatrixTests asserts them against each other. Reading the list through
+      $(TestTargetFrameworks) rather than repeating it here is what keeps that guard honest — the
+      property it compares against is the same one the build uses.
     -->
-    <TargetFramework>net10.0</TargetFramework>
-    <TargetFrameworks></TargetFrameworks>
+    <TargetFrameworks>$(TestTargetFrameworks)</TargetFrameworks>
+
+    <!--
+      ktsu.Sdk sets TargetFramework for test projects. A non-empty TargetFramework makes MSBuild
+      treat the project as single-targeting and ignore TargetFrameworks entirely, so without this
+      the build is silently one leg again — the exact regression #30 was filed for.
+
+      (Setting TargetFrameworks to exactly net10.0 has the mirror-image problem: ktsu.Sdk 2.31.1
+      clears it when it still equals the SDK's own test default. A multi-framework list never
+      compares equal, so the list above survives.)
+    -->
+    <TargetFramework></TargetFramework>
+
+    <!--
+      ktsu.Sdk pins RuntimeFrameworkVersion to 10.0.0 for every target framework. Left alone, every
+      leg launches on the .NET 10 shared framework and loads System.Text.Json 10, so the matrix
+      proves compile compatibility and nothing about runtime behaviour — the one thing it exists to
+      prove. Clearing it puts each leg on its own shared framework; RollForward=LatestPatch then
+      allows a patch-level bump when the exact band is absent.
+    -->
+    <RuntimeFrameworkVersion></RuntimeFrameworkVersion>
+    <RollForward>LatestPatch</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +43,32 @@
     <AssemblyMetadata Include="LibraryPackageBoundTargetFrameworks" Value="$(LibraryPackageBoundTargetFrameworks)" />
     <AssemblyMetadata Include="TestTargetFrameworks" Value="$(TestTargetFrameworks)" />
     <AssemblyMetadata Include="UncoveredRunnableTargetFrameworks" Value="$(UncoveredRunnableTargetFrameworks)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Putting each leg on its own shared framework is necessary but not sufficient: the test host
+      drags System.Text.Json 10 in transitively (Microsoft.Testing.Extensions.CodeCoverage and
+      Microsoft.Extensions.DependencyModel both require >= 10.0.10). NuGet picks the highest
+      version, so all three legs would compile and run against System.Text.Json 10 and the matrix
+      would again prove only that the library compiles on three frameworks.
+
+      Excluding both the compile and runtime assets drops the NuGet copy without removing the
+      package from the graph, so the reference resolves from each leg's own shared framework at
+      compile time and at run time, while the test host keeps the dependency it asked for.
+
+      Two alternatives were tried and rejected. Excluding only the runtime asset still compiles
+      the test assembly against 10.0.0.0, which then fails to load on the net9.0 and net8.0 legs.
+      Pinning System.Text.Json per leg to match its framework is refused three ways at once:
+      NU1510 (the package is framework-provided and must not be referenced explicitly), NU1605
+      (a downgrade from the test host's 10.0.10), and NU1903 — System.Text.Json 8.0.0 carries two
+      known high-severity advisories, so that route would trade a testing gap for a real one.
+
+      RuntimeMatrixTests.SystemTextJsonComesFromTheSharedFrameworkOfThisLeg asserts the outcome
+      rather than trusting any of this: it fails on any leg that loads a System.Text.Json whose
+      major version differs from the framework it was compiled for.
+    -->
+    <PackageReference Include="System.Text.Json" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
   <ItemGroup>

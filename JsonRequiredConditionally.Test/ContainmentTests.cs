@@ -24,7 +24,7 @@ public class ContainmentTests
 
 		string json = JsonSerializer.Serialize(shape, CreateOptions());
 
-		StringAssert.Contains(json, "decorated");
+		Assert.Contains("decorated", json);
 	}
 
 	[TestMethod]
@@ -53,7 +53,7 @@ public class ContainmentTests
 			() => JsonSerializer.Deserialize<HolderShapeBase>(
 				"""{"$type":"holder","Label":"a","Child":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -71,8 +71,8 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<SimpleConfig>("""{"Kind":"Basic"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "Populate");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("Populate", exception.Message);
 	}
 
 	[TestMethod]
@@ -87,8 +87,8 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<SimpleConfig>("""{"Kind":"Basic"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "ReferenceHandler");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("ReferenceHandler", exception.Message);
 	}
 
 	[TestMethod]
@@ -116,8 +116,8 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>("""{"Name":"a"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "ReferenceHandler");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("ReferenceHandler", exception.Message);
 	}
 
 	[TestMethod]
@@ -147,8 +147,8 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>("""{"Name":"a"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "Populate");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("Populate", exception.Message);
 	}
 
 	[TestMethod]
@@ -164,7 +164,7 @@ public class ContainmentTests
 
 		string json = JsonSerializer.Serialize(new SimpleConfig { Kind = Kind.Basic, Tuning = "x" }, options);
 
-		StringAssert.Contains(json, "\"Tuning\":\"x\"");
+		Assert.Contains("\"Tuning\":\"x\"", json);
 	}
 
 	[TestMethod]
@@ -179,9 +179,9 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<PopulateGuardHolder>("""{"Kind":"Basic"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "Populate");
-		StringAssert.Contains(exception.Message, "type-level");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("Populate", exception.Message);
+		Assert.Contains("type-level", exception.Message);
 	}
 
 	[TestMethod]
@@ -201,7 +201,7 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Serialize(new PopulateGuardHolder(), options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
 	}
 
 	[TestMethod]
@@ -216,8 +216,8 @@ public class ContainmentTests
 		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
 			() => JsonSerializer.Deserialize<PopulateGuardHolder>("""{"Kind":"Basic"}""", options));
 
-		StringAssert.Contains(exception.Message, "ktsu.JsonRequiredConditionally");
-		StringAssert.Contains(exception.Message, "property-level");
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("property-level", exception.Message);
 	}
 
 	[TestMethod]
@@ -231,7 +231,7 @@ public class ContainmentTests
 
 		string json = JsonSerializer.Serialize(new PopulateGuardHolder { Kind = Kind.Basic, Tuning = "x" }, options);
 
-		StringAssert.Contains(json, "\"Tuning\":\"x\"");
+		Assert.Contains("\"Tuning\":\"x\"", json);
 	}
 
 	[TestMethod]

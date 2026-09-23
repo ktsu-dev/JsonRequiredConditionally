@@ -20,9 +20,9 @@ public class PresenceScannerTests
 		HashSet<string> names = Scan(/*lang=json,strict*/ """{"a":1,"b":"x","c":null}""");
 
 		Assert.HasCount(3, names);
-		Assert.IsTrue(names.Contains("a"));
-		Assert.IsTrue(names.Contains("b"));
-		Assert.IsTrue(names.Contains("c"));
+		Assert.Contains("a", names);
+		Assert.Contains("b", names);
+		Assert.Contains("c", names);
 	}
 
 	[TestMethod]
@@ -30,7 +30,7 @@ public class PresenceScannerTests
 	{
 		HashSet<string> names = Scan(/*lang=json,strict*/ """{"a":null}""");
 
-		Assert.IsTrue(names.Contains("a"));
+		Assert.Contains("a", names);
 	}
 
 	[TestMethod]
@@ -39,9 +39,9 @@ public class PresenceScannerTests
 		HashSet<string> names = Scan(/*lang=json,strict*/ """{"outer":{"inner":1},"sibling":2}""");
 
 		Assert.HasCount(2, names);
-		Assert.IsTrue(names.Contains("outer"));
-		Assert.IsTrue(names.Contains("sibling"));
-		Assert.IsFalse(names.Contains("inner"));
+		Assert.Contains("outer", names);
+		Assert.Contains("sibling", names);
+		Assert.DoesNotContain("inner", names);
 	}
 
 	[TestMethod]
@@ -50,7 +50,7 @@ public class PresenceScannerTests
 		HashSet<string> names = Scan(/*lang=json,strict*/ """{"items":[{"inner":1},{"inner":2}],"count":2}""");
 
 		Assert.HasCount(2, names);
-		Assert.IsFalse(names.Contains("inner"));
+		Assert.DoesNotContain("inner", names);
 	}
 
 	[TestMethod]
@@ -70,6 +70,6 @@ public class PresenceScannerTests
 	{
 		HashSet<string> names = Scan(/*lang=json,strict*/ """{"Tuning":1}""", StringComparer.OrdinalIgnoreCase);
 
-		Assert.IsTrue(names.Contains("tuning"));
+		Assert.Contains("tuning", names);
 	}
 }

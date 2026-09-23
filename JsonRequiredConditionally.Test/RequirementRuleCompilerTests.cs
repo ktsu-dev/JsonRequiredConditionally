@@ -86,8 +86,8 @@ public class RequirementRuleCompilerTests
 		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
 			() => RequirementRuleCompiler.Compile(typeof(BrokenConfig), new JsonSerializerOptions()));
 
-		StringAssert.Contains(exception.Message, "NoSuchMember");
-		StringAssert.Contains(exception.Message, nameof(BrokenConfig));
+		Assert.Contains("NoSuchMember", exception.Message);
+		Assert.Contains(nameof(BrokenConfig), exception.Message);
 	}
 
 	[TestMethod]

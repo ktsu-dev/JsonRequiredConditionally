@@ -28,8 +28,8 @@ dotnet test --filter "FullyQualifiedName~ConverterTests.AbsentRequiredPropertyTh
 # Run tests in a specific test class
 dotnet test --filter "FullyQualifiedName~NestingTests"
 
-# Run one leg of the matrix only (the test matrix is currently a single net10.0 leg)
-dotnet test --framework net10.0
+# Run one leg of the matrix only (the matrix is net10.0, net9.0 and net8.0)
+dotnet test --framework net9.0
 
 # Create NuGet package
 dotnet pack --configuration Release --output ./staging
@@ -172,10 +172,10 @@ supported — their shared-framework version of System.Text.Json predates `JsonS
 
 ### Test Structure
 
-Tests use MSTest.Sdk and currently run as a **single `net10.0` leg**, so only the .NET 10 in-box
-System.Text.Json is actually exercised; the `net9.0`, `net8.0` and `net7.0` assets the library ships
-are compiled but not run. That is a known gap, not the intent — see the matrix notes below and
-ktsu-dev/JsonRequiredConditionally#30. Test files are organized by concern rather than one-to-one
+Tests use MSTest.Sdk and run as **three legs — `net10.0`, `net9.0` and `net8.0`** — each on its own
+shared framework, so each exercises that framework's in-box System.Text.Json. The `net7.0` asset the
+library ships is compiled but not run, which is a recorded gap with a reason rather than an
+oversight; see the matrix notes below. Test files are organized by concern rather than one-to-one
 with source files:
 - `JsonRequiredConditionally.Test/AttributeTests.cs` — attribute construction and metadata
 - `JsonRequiredConditionally.Test/ContainmentTests.cs` — polymorphism, `Populate` and `ReferenceHandler`: what is refused and what throws
@@ -207,36 +207,49 @@ reason (`UncoveredRunnableTargetFrameworks`).
 leg and no recorded reason fails the build. Adding a target framework to the library without either
 testing it or recording why not is therefore a build error rather than something to notice later.
 
-Four things about the matrix are easy to break, and three of them already happened:
+The matrix runs `net10.0`, `net9.0` and `net8.0` — 630 tests, 210 per leg. Five things about it are
+easy to break, and four of them already happened:
 
-1. **204 latent analyzer violations surface only under multi-targeting.** Building the test project
-   for `net10.0;net9.0;net8.0` produces 204 errors — all on the `net10.0` leg, all in pre-existing
-   test files, across `MSTEST0037`, `MSTEST0046` and `MSTEST0068`. The same files compile clean as a
-   single leg under the same MSTest.Sdk 4.4.1, the same `NoWarn` and the same `IsTestProject`.
-   **This is why the matrix is one leg.** Clearing them is a mechanical change across about ten test
-   files; suppressing the three rules is a policy call for a repo that runs analyzers as errors.
+1. **A non-empty `TargetFramework` silently collapses the matrix to one leg.** ktsu.Sdk sets it for
+   test projects, and MSBuild treats any project with `TargetFramework` set as single-targeting,
+   ignoring `TargetFrameworks` entirely. The test project therefore clears it. This is the failure
+   #30 was filed for, and it is quiet: the build succeeds and the suite passes, just on one leg.
 
-   Worth knowing: this is *not* the same blocker as before. Up to ktsu.Sdk 2.30.1, `Sdk/Sdk.targets`
-   cleared `TargetFrameworks` for every `IsTestProject` unconditionally, and is imported after both
-   the project body and `Directory.Build.targets`, so a test project could not multi-target at all.
-   2.31.1 made that clear conditional on the value still being the SDK's own default, so an explicit
-   override now survives. A consequence worth remembering: setting `TargetFrameworks` to exactly
-   `net10.0` compares equal to that default and is cleared, which is why the test project sets
-   `TargetFramework` explicitly instead.
+   The mirror-image trap: as of ktsu.Sdk 2.31.1, `Sdk/Sdk.targets` clears `TargetFrameworks` when it
+   still equals the SDK's own test default of `net10.0`. A multi-framework list never compares equal,
+   so the list survives — but shrinking the matrix back to exactly `net10.0` would vanish. (Up to
+   2.30.1 that clear was unconditional and no test project could multi-target at all.)
 2. **ktsu.Sdk pins `RuntimeFrameworkVersion` to `10.0.0` for every target framework.** Left alone,
-   every leg would run on the .NET 10 shared framework and load System.Text.Json 10, so a restored
-   matrix would test compile compatibility and nothing else. `RuntimeMatrixTests` fails if a leg is
-   running on a framework other than the one it was compiled for, which is what catches this. The
-   override that used to clear it is no longer in the test project; it will need to come back
-   alongside any restored matrix.
-3. **MSTest.Sdk 4.x has no `net7.0` asset.** `global.json` carries MSTest.Sdk `4.4.1` with no
-   project-level pin, so covering `net7.0` would mean restoring a `3.11.1` pin. `net7.0` is also out
-   of support and is no longer in ktsu.Sdk's own default target framework list, while the library
-   still ships a `net7.0` asset — so whether to keep shipping it is a separate decision from whether
-   it can be tested.
-4. **Running a restored matrix needs the matching runtimes installed.** CI installs `8.0.x`, `9.0.x`
-   and `10.x` via `actions/setup-dotnet` — note it does not install `7.0.x`. Locally, a leg whose
-   runtime is missing fails to launch outright.
+   every leg runs on the .NET 10 shared framework and loads System.Text.Json 10, so the matrix tests
+   compile compatibility and nothing else. The test project clears it and sets
+   `RollForward=LatestPatch`. `RuntimeMatrixTests` fails if a leg runs on a framework other than the
+   one it was compiled for, which is what catches this.
+3. **The test host drags System.Text.Json 10 into every leg.** `Microsoft.Testing.Extensions.
+   CodeCoverage` and `Microsoft.Extensions.DependencyModel` both require `>= 10.0.10`, NuGet picks
+   the highest version, and the NuGet copy shadows each leg's in-box one — which would leave the
+   matrix cosmetic even with (2) fixed. The test project references System.Text.Json with
+   `ExcludeAssets="compile;runtime"`, so the package stays in the graph for the test host while each
+   leg resolves the assembly from its own shared framework.
+
+   Two alternatives are dead ends, both measured: excluding only the `runtime` asset still compiles
+   the test assembly against `10.0.0.0`, which then fails to load on the `net9.0` and `net8.0` legs;
+   and pinning System.Text.Json per leg is refused three ways — `NU1510` (framework-provided, must
+   not be referenced explicitly), `NU1605` (downgrade from the test host's `10.0.10`), and `NU1903`,
+   since System.Text.Json `8.0.0` carries two known high-severity advisories.
+4. **MSTest analyzers run only under multi-targeting.** Restoring the matrix surfaced 204 latent
+   violations (`MSTEST0037`, `MSTEST0046`, `MSTEST0068`) in pre-existing test files, since fixed.
+   They do not appear on a single leg even with the rules raised to `error` in `.editorconfig`, so
+   the matrix itself is the only thing guarding them. Collapsing to one leg hides them again.
+5. **Running the matrix needs the matching runtimes installed.** CI installs `8.0.x`, `9.0.x` and
+   `10.x` via `actions/setup-dotnet` — note it does not install `7.0.x`, which is why `net7.0` is a
+   recorded gap. Locally, a leg whose runtime is missing fails to launch outright rather than
+   skipping, so `TestTargetFrameworks` and that `setup-dotnet` list have to move together.
+
+**`net7.0` remains uncovered**, and needs a decision rather than a fix: MSTest.Sdk 4.x has no
+`net7.0` asset, so a leg means restoring the MSTest.Sdk `3.11.1` pin that `global.json`'s `4.4.1`
+replaced — for the whole repository. `net7.0` is also out of support and no longer in ktsu.Sdk's
+default target list, while the library still ships a `net7.0` asset, so whether to keep shipping it
+is a separate question from whether it can be tested.
 
 Not covered, and not coverable by a .NET leg: the `netstandard2.0`/`netstandard2.1` assets, which
 bind System.Text.Json from NuGet. Reaching those needs a `net472` leg — ktsu-dev/JsonRequiredConditionally#14.

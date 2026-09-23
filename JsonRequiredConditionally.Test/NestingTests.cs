@@ -39,7 +39,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}],"Lookup":{}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Items[1].Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Items[1].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -49,7 +49,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<CollectionConfig>(
 				"""{"Items":[],"Lookup":{"a":{"Kind":"Advanced"}}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Lookup.a.Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Lookup.a.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -59,7 +59,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<IntKeyedDictionaryConfig>(
 				"""{"Items":{"1":{"Kind":"Advanced"}}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Items.1.Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Items.1.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -120,7 +120,7 @@ public class NestingTests
 				"""{"Kind":"Basic","Children":[{"Kind":"Basic","Children":[]},{"Kind":"Advanced","Children":[]}]}""",
 				CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Children[1].Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Children[1].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -133,9 +133,8 @@ public class NestingTests
 			"""{"Items":[{"Kind":"Advanced","Tuning":"x"},{"Kind":"Basic"}]}""", CreateOptions());
 
 		Assert.IsNotNull(config);
-		CollectionAssert.AreEquivalent(
-			new List<Kind> { Kind.Basic, Kind.Advanced },
-			config.Items.Select(item => item.Kind).ToList());
+		Assert.AreSequenceEqual(
+			new List<Kind> { Kind.Basic, Kind.Advanced }, [.. config.Items.Select(item => item.Kind)], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -148,9 +147,8 @@ public class NestingTests
 			CreateOptions());
 
 		Assert.IsNotNull(config);
-		CollectionAssert.AreEquivalent(
-			new List<int> { 1, 2 },
-			config.Items.Select(item => item.Rank).ToList());
+		Assert.AreSequenceEqual(
+			new List<int> { 1, 2 }, [.. config.Items.Select(item => item.Rank)], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -160,7 +158,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<TreeNode>(
 				"""{"Kind":"Advanced","Child":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Tuning", "Child.Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning", "Child.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -253,7 +251,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<HidingObjectConfig>(
 				"""{"Payload":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Payload.Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Payload.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -279,7 +277,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<CtorOnlyPathHolder>(
 				"""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
 
-		CollectionAssert.AreEquivalent(new List<string> { "Child.Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
 	}
 
 	[TestMethod]
@@ -323,7 +321,7 @@ public class NestingTests
 		InvalidOperationException claimed = Assert.ThrowsExactly<InvalidOperationException>(withFactory);
 
 		Assert.AreEqual(direct.Message, claimed.Message);
-		StringAssert.Contains(claimed.Message, "JsonIncludeAttribute");
+		Assert.Contains("JsonIncludeAttribute", claimed.Message);
 	}
 
 	[TestMethod]
@@ -360,7 +358,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<NotEmptyHolder>(
 				/*lang=json,strict*/ """{"Child":{"Name":""}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Child.Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Child.Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -370,7 +368,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
 				/*lang=json,strict*/ """{"Children":[{"Name":"ok"},{"Name":""}]}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Children[1].Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Children[1].Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -380,7 +378,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<NotEmptyDictionaryHolder>(
 				/*lang=json,strict*/ """{"Lookup":{"a":{"Name":""}}}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Lookup.a.Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Lookup.a.Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -390,9 +388,8 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
 				/*lang=json,strict*/ """{"Children":[{"Name":""},{"Name":""}]}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(
-			new List<string> { "Children[0].Name", "Children[1].Name" },
-			exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(
+			new List<string> { "Children[0].Name", "Children[1].Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -402,7 +399,7 @@ public class NestingTests
 			() => JsonSerializer.Deserialize<NotEmptySequenceHolder>(
 				/*lang=json,strict*/ """{"Children":[{},{"Name":""}]}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Children[0].Name" }, exception.MissingProperties.ToList());
-		CollectionAssert.AreEqual(new List<string> { "Children[1].Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Children[0].Name" }, [.. exception.MissingProperties]);
+		Assert.AreSequenceEqual(new List<string> { "Children[1].Name" }, [.. exception.EmptyProperties]);
 	}
 }

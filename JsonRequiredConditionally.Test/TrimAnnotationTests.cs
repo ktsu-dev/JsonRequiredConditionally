@@ -24,7 +24,7 @@ public class TrimAnnotationTests
 			FactoryConstructor.GetCustomAttribute<RequiresUnreferencedCodeAttribute>();
 
 		Assert.IsNotNull(attribute);
-		StringAssert.Contains(attribute.Message, "trimming");
+		Assert.Contains("trimming", attribute.Message);
 	}
 
 	[TestMethod]
@@ -34,6 +34,6 @@ public class TrimAnnotationTests
 			FactoryConstructor.GetCustomAttribute<RequiresDynamicCodeAttribute>();
 
 		Assert.IsNotNull(attribute);
-		StringAssert.Contains(attribute.Message, "ahead-of-time");
+		Assert.Contains("ahead-of-time", attribute.Message);
 	}
 }

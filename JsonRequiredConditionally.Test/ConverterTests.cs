@@ -17,7 +17,7 @@ public class ConverterTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<SimpleConfig>("""{"Kind":"Advanced"}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -100,7 +100,7 @@ public class ConverterTests
 
 		string json = JsonSerializer.Serialize(config, CreateOptions());
 
-		StringAssert.Contains(json, "Tuning");
+		Assert.Contains("Tuning", json);
 	}
 
 	[TestMethod]
@@ -109,7 +109,7 @@ public class ConverterTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ "{}", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.MissingProperties]);
 	}
 
 	[TestMethod]
@@ -119,7 +119,7 @@ public class ConverterTests
 			() => JsonSerializer.Deserialize<NotEmptyAndConditionalConfig>(
 				"""{"Kind":"Advanced"}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
 		Assert.IsEmpty(exception.EmptyProperties);
 	}
 
@@ -131,7 +131,7 @@ public class ConverterTests
 				"""{"Kind":"Basic","Tuning":""}""", CreateOptions()));
 
 		Assert.IsEmpty(exception.MissingProperties);
-		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -141,6 +141,6 @@ public class ConverterTests
 			() => JsonSerializer.Deserialize<NotEmptyAndConditionalConfig>(
 				"""{"Kind":"Basic"}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Tuning" }, exception.MissingProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
 	}
 }

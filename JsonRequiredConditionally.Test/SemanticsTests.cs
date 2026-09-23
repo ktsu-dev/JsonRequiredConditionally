@@ -42,8 +42,8 @@ public class SemanticsTests
 			() => JsonSerializer.Deserialize<MultiViolationConfig>("""{"Kind":"Advanced"}""", CreateOptions()));
 
 		Assert.HasCount(2, exception.MissingProperties);
-		CollectionAssert.Contains(exception.MissingProperties.ToList(), "Tuning");
-		CollectionAssert.Contains(exception.MissingProperties.ToList(), "Host");
+		Assert.Contains("Tuning", exception.MissingProperties);
+		Assert.Contains("Host", exception.MissingProperties);
 	}
 
 	[TestMethod]
@@ -78,7 +78,7 @@ public class SemanticsTests
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
 			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json,strict*/ """{"Name":null}""", CreateOptions()));
 
-		CollectionAssert.AreEqual(new List<string> { "Name" }, exception.EmptyProperties.ToList());
+		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.EmptyProperties]);
 	}
 
 	[TestMethod]
@@ -98,6 +98,6 @@ public class SemanticsTests
 
 		string json = JsonSerializer.Serialize(config, CreateOptions());
 
-		StringAssert.Contains(json, "Name");
+		Assert.Contains("Name", json);
 	}
 }
