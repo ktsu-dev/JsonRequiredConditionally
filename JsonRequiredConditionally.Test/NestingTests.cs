@@ -124,6 +124,36 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void ReorderingCollectionDoesNotMispairElementsWithItems()
+	{
+		// Both elements are individually valid: the Advanced one carries Tuning, the Basic one needs
+		// none. Stack<T> yields them in reverse, so pairing by position checks the Advanced instance
+		// against the Basic element's JSON and faults a sound payload on Items[1].Tuning.
+		StackConfig? config = JsonSerializer.Deserialize<StackConfig>(
+			"""{"Items":[{"Kind":"Advanced","Tuning":"x"},{"Kind":"Basic"}]}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		CollectionAssert.AreEquivalent(
+			new List<Kind> { Kind.Basic, Kind.Advanced },
+			config.Items.Select(item => item.Kind).ToList());
+	}
+
+	[TestMethod]
+	public void ComparerOrderedCollectionDoesNotMispairElementsWithItems()
+	{
+		// SortedSet<T> yields by Rank, the reverse of payload order here. Only the Advanced element
+		// carries Tuning, so a positional pairing faults the payload on Items[1].Tuning.
+		SortedSetConfig? config = JsonSerializer.Deserialize<SortedSetConfig>(
+			"""{"Items":[{"Rank":2,"Kind":"Advanced","Tuning":"x"},{"Rank":1,"Kind":"Basic"}]}""",
+			CreateOptions());
+
+		Assert.IsNotNull(config);
+		CollectionAssert.AreEquivalent(
+			new List<int> { 1, 2 },
+			config.Items.Select(item => item.Rank).ToList());
+	}
+
+	[TestMethod]
 	public void ViolationsAtDifferentDepthsAggregateIntoOneException()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(

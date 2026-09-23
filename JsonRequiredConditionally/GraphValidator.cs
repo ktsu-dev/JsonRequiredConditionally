@@ -161,8 +161,13 @@ internal static class GraphValidator
 				Walk(element, value, plainOptions, userOptions, comparer, path, violations);
 				break;
 
-			case JsonValueKind.Array when value is IEnumerable sequence:
-				DescendSequence(element, sequence, plainOptions, userOptions, comparer, path, violations);
+			// IList, not IEnumerable: pairing is positional, so it is only sound for a collection whose
+			// enumeration order is its payload order. An IList's indexer is defined to be that order,
+			// because System.Text.Json appends each element as it reads it. Sequences that reorder --
+			// Stack<T> (LIFO), SortedSet<T> (comparer order), HashSet<T> (bucket order) -- are left
+			// alone rather than mispaired; see DescendList.
+			case JsonValueKind.Array when value is IList list:
+				DescendList(element, list, plainOptions, userOptions, comparer, path, violations);
 				break;
 
 			default:
@@ -215,44 +220,51 @@ internal static class GraphValidator
 		_ => key.ToString(),
 	};
 
-	private static void DescendSequence(
+	/// <summary>
+	/// Validates each element of a JSON array against the list entry materialized from it.
+	/// </summary>
+	/// <remarks>
+	/// A collection that is not an <see cref="IList"/> is not descended into at all. Pairing the
+	/// n-th JSON element with the n-th item a collection happens to yield is only correct when the
+	/// two orders agree, and for a reordering collection they do not: a <see cref="Stack{T}"/>
+	/// yields its items in reverse, so the rules compiled for one element would be evaluated against
+	/// a different one. That misreports in both directions -- a valid payload rejected because an
+	/// unrelated item failed to carry a conditionally required member, and an invalid one accepted
+	/// because the item that should have failed was checked against another element's JSON. Not
+	/// descending loses coverage for those collections, which is the same accepted boundary this
+	/// walk already has for a type behind its own converter, and is strictly safer than descending
+	/// with the wrong pairing.
+	/// </remarks>
+	private static void DescendList(
 		JsonElement element,
-		IEnumerable sequence,
+		IList list,
 		JsonSerializerOptions plainOptions,
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
 		string path,
 		ViolationCollector violations)
 	{
-		// Zip the JSON array's own enumerator against the sequence's, rather than indexing the
-		// element by position: JsonElement's array indexer falls back to a sequential scan for
-		// non-simple elements, making per-index access O(n) and the whole loop O(n^2).
-		IEnumerator items = sequence.GetEnumerator();
+		// Walk the JSON array's own enumerator rather than indexing the element by position:
+		// JsonElement's array indexer falls back to a sequential scan for non-simple elements,
+		// making per-index access O(n) and the whole loop O(n^2). The list side is indexed instead,
+		// which is O(1) and carries the positional guarantee this pairing depends on.
+		int index = 0;
 
-		try
+		foreach (JsonElement itemElement in element.EnumerateArray())
 		{
-			int index = 0;
-
-			foreach (JsonElement itemElement in element.EnumerateArray())
+			if (index >= list.Count)
 			{
-				if (!items.MoveNext())
-				{
-					break;
-				}
-
-				object? item = items.Current;
-
-				if (item is not null)
-				{
-					Descend(itemElement, item, plainOptions, userOptions, comparer, $"{path}[{index}]", violations);
-				}
-
-				index++;
+				break;
 			}
-		}
-		finally
-		{
-			(items as IDisposable)?.Dispose();
+
+			object? item = list[index];
+
+			if (item is not null)
+			{
+				Descend(itemElement, item, plainOptions, userOptions, comparer, $"{path}[{index}]", violations);
+			}
+
+			index++;
 		}
 	}
 
