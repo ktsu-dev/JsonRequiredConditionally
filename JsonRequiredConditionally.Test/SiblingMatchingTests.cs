@@ -66,6 +66,35 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void FractionalAttributeValueAgainstIntegralSiblingThrowsOnFirstUse()
+	{
+		// Convert narrows by rounding, so 2.4 used to widen to 2 and silently match every int
+		// sibling holding 2 -- requiring Detail against a payload that never asked for it. No int
+		// can equal 2.4, so this is the "can never match" case and belongs in the loud category.
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<FractionalSiblingConfig>(
+				"""{"Count":2}""", CreateOptions()));
+
+		StringAssert.Contains(exception.Message, nameof(FractionalSiblingConfig));
+		StringAssert.Contains(exception.Message, nameof(FractionalSiblingConfig.Count));
+	}
+
+	[TestMethod]
+	public void WholeDoubleAttributeValueStillMatchesIntegralSibling()
+	{
+		// 2.0 round-trips through int unchanged, so the widening the matcher exists for is untouched.
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<WholeDoubleSiblingConfig>(
+				"""{"Count":2}""", CreateOptions()));
+
+		WholeDoubleSiblingConfig? config = JsonSerializer.Deserialize<WholeDoubleSiblingConfig>(
+			"""{"Count":3}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Detail);
+	}
+
+	[TestMethod]
 	public void UnconvertibleAttributeValueThrowsOnFirstUse()
 	{
 		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(

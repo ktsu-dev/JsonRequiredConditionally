@@ -117,6 +117,37 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
+	public void DoesNotMatchAConstantThatOnlyRoundsOntoTheSiblingValue()
+	{
+		// Convert narrows by rounding, so each of these used to convert onto the sibling's own value
+		// and compare equal to a number it does not equal. Banker's rounding takes 1.5 to 2, so the
+		// .5 case matched just as the ordinary fractional one did.
+		Assert.IsFalse(ValueMatcher.Matches(2, 2.4));
+		Assert.IsFalse(ValueMatcher.Matches(2, 1.5));
+		Assert.IsFalse(ValueMatcher.Matches(2, 2.4m));
+		Assert.IsFalse(ValueMatcher.Matches(2L, 2.4));
+		Assert.IsFalse(ValueMatcher.Matches((nint)2, 2.4));
+	}
+
+	[TestMethod]
+	public void MatchesAConstantThatNarrowsExactly()
+	{
+		// The widening this matcher exists for is untouched: a whole constant written as a double
+		// round-trips through the sibling's type unchanged.
+		Assert.IsTrue(ValueMatcher.Matches(2, 2.0));
+		Assert.IsTrue(ValueMatcher.Matches(2, 2.0m));
+		Assert.IsTrue(ValueMatcher.Matches((nint)2, 2.0));
+	}
+
+	[TestMethod]
+	public void CanEverMatchRejectsAConstantNoValueOfTheSiblingTypeCouldEqual()
+	{
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), 2.4));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(long), 1.5));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(int), 2.0));
+	}
+
+	[TestMethod]
 	public void DoesNotStringifyANumberToMatchAStringSibling()
 	{
 		Assert.IsFalse(ValueMatcher.Matches("1", 1));
