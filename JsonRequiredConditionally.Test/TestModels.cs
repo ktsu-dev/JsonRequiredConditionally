@@ -522,6 +522,24 @@ public sealed class UnconvertibleSiblingConfig
 	public string? Detail { get; set; }
 }
 
+/// <summary>An <c>int</c> sibling compared against a constant no <c>int</c> can equal.</summary>
+public sealed class FractionalSiblingConfig
+{
+	public int Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 2.4)]
+	public string? Detail { get; set; }
+}
+
+/// <summary>An <c>int</c> sibling compared against a whole constant written as a <c>double</c>.</summary>
+public sealed class WholeDoubleSiblingConfig
+{
+	public int Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), 2.0)]
+	public string? Detail { get; set; }
+}
+
 /// <summary>
 /// A holder with a get-only child, used to drive the <c>JsonObjectCreationHandling</c> guard.
 /// </summary>
