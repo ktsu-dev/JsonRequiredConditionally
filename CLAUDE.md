@@ -209,11 +209,20 @@ testing it or recording why not is therefore a build error rather than something
 
 Four things about the matrix are easy to break, and three of them already happened:
 
-1. **ktsu.Sdk clears `TargetFrameworks` for every test project.** `Sdk/Sdk.targets` has
-   `<PropertyGroup Condition="$(IsTestProject) == 'true'"><TargetFrameworks></TargetFrameworks>`,
-   and it is imported *after* the project body and after `Directory.Build.targets`. So a ktsu test
-   project cannot multi-target from its own repository — measured both ways, each evaluating back to
-   empty. **This is why the matrix is one leg**, and restoring more needs a change in ktsu.Sdk.
+1. **204 latent analyzer violations surface only under multi-targeting.** Building the test project
+   for `net10.0;net9.0;net8.0` produces 204 errors — all on the `net10.0` leg, all in pre-existing
+   test files, across `MSTEST0037`, `MSTEST0046` and `MSTEST0068`. The same files compile clean as a
+   single leg under the same MSTest.Sdk 4.4.1, the same `NoWarn` and the same `IsTestProject`.
+   **This is why the matrix is one leg.** Clearing them is a mechanical change across about ten test
+   files; suppressing the three rules is a policy call for a repo that runs analyzers as errors.
+
+   Worth knowing: this is *not* the same blocker as before. Up to ktsu.Sdk 2.30.1, `Sdk/Sdk.targets`
+   cleared `TargetFrameworks` for every `IsTestProject` unconditionally, and is imported after both
+   the project body and `Directory.Build.targets`, so a test project could not multi-target at all.
+   2.31.1 made that clear conditional on the value still being the SDK's own default, so an explicit
+   override now survives. A consequence worth remembering: setting `TargetFrameworks` to exactly
+   `net10.0` compares equal to that default and is cleared, which is why the test project sets
+   `TargetFramework` explicitly instead.
 2. **ktsu.Sdk pins `RuntimeFrameworkVersion` to `10.0.0` for every target framework.** Left alone,
    every leg would run on the .NET 10 shared framework and load System.Text.Json 10, so a restored
    matrix would test compile compatibility and nothing else. `RuntimeMatrixTests` fails if a leg is
