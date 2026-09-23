@@ -3,9 +3,31 @@
   <Sdk Name="ktsu.Sdk" />
 
   <PropertyGroup>
+    <!--
+      A single leg. Directory.Build.props holds the matrix lists and the reason for each gap,
+      and RuntimeMatrixTests asserts them against each other.
+
+      TargetFramework is set explicitly rather than left to TargetFrameworks: as of ktsu.Sdk
+      2.31.1, Sdk.targets clears TargetFrameworks when it still equals the SDK's own test
+      default, and that default is net10.0 — so writing net10.0 here would compare equal and be
+      cleared, leaving nothing behind. Whatever restores the matrix replaces both lines, and
+      will also need the RuntimeFrameworkVersion override described in CLAUDE.md.
+    -->
     <TargetFramework>net10.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Baked into the test assembly so a leg can see the shape of the whole matrix. A per-leg test
+      cannot observe its siblings, so the expected set has to arrive from build configuration;
+      comparing these lists is what turns a silent gap into a failing test.
+    -->
+    <AssemblyMetadata Include="LibraryRunnableTargetFrameworks" Value="$(LibraryRunnableTargetFrameworks)" />
+    <AssemblyMetadata Include="LibraryPackageBoundTargetFrameworks" Value="$(LibraryPackageBoundTargetFrameworks)" />
+    <AssemblyMetadata Include="TestTargetFrameworks" Value="$(TestTargetFrameworks)" />
+    <AssemblyMetadata Include="UncoveredRunnableTargetFrameworks" Value="$(UncoveredRunnableTargetFrameworks)" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\JsonRequiredConditionally\JsonRequiredConditionally.csproj" />
