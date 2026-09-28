@@ -1,3 +1,7 @@
+## v1.2.16
+
+No significant changes detected since v1.2.16.
+
 ## v1.2.16 (patch)
 
 Changes since v1.2.15:
@@ -118,6 +122,7 @@ Changes since v1.1.0:
 - Stop Update SDKs failing when there is nothing to update ([@matt-edmondson](https://github.com/matt-edmondson))
 - Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 - [patch] Update ktsu.Sdk to 2.21.1 ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update copyright years and adjust output directory in configuration files ([@matt-edmondson](https://github.com/matt-edmondson))
@@ -170,6 +175,7 @@ Changes since v1.1.2:
 
 Changes since v1.1.1:
 
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
 
