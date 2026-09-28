@@ -3,8 +3,9 @@
 namespace ktsu.JsonRequiredConditionally;
 
 using System.Collections;
-using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
@@ -185,6 +186,7 @@ internal static class GraphValidator
 		ViolationCollector violations)
 	{
 		bool caseInsensitive = userOptions.PropertyNameCaseInsensitive;
+		Dictionary<object, (string Name, JsonElement Element)>? parsedKeys = null;
 
 		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
 		// indexer returns null for a key of the wrong CLR type (e.g. int) instead of matching the
@@ -192,33 +194,107 @@ internal static class GraphValidator
 		// (e.g. ImmutableDictionary). DictionaryEntry enumeration works uniformly for both.
 		foreach (DictionaryEntry entry in dictionary)
 		{
-			string? key = FormatKey(entry.Key);
-
-			if (key is null || entry.Value is null)
+			if (entry.Value is null)
 			{
 				continue;
 			}
 
-			if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
+			if (entry.Key is string key)
 			{
-				Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), violations);
+				if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
+				{
+					Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), violations);
+				}
+
+				continue;
+			}
+
+			// Any other key type is paired by parsing each JSON property name back into a key, rather
+			// than by re-formatting the CLR key as text: System.Text.Json's key formats (ISO 8601 dates,
+			// lower-case `true`, case-insensitive Guids, enum names) do not match what ToString gives,
+			// and a mismatch silently skipped the entry, and every violation inside it.
+			parsedKeys ??= ParseKeys(element, entry.Key.GetType(), plainOptions);
+
+			if (parsedKeys.TryGetValue(entry.Key, out (string Name, JsonElement Element) match))
+			{
+				Descend(match.Element, entry.Value, plainOptions, userOptions, comparer, Combine(path, match.Name), violations);
 			}
 		}
 	}
 
 	/// <summary>
-	/// Formats a dictionary key the same way System.Text.Json writes it: invariantly, not under the
-	/// current culture. A negative <c>int</c> key under a culture whose negative sign is not ASCII
-	/// hyphen-minus would otherwise never match the JSON property name System.Text.Json produced.
+	/// Parses every property name of a JSON object into a dictionary key, through the same converter
+	/// System.Text.Json used to read the keys when it materialized the dictionary.
 	/// </summary>
-	/// <param name="key">The dictionary entry's key.</param>
-	/// <returns>The key formatted invariantly, or null if the key itself is null.</returns>
-	private static string? FormatKey(object? key) => key switch
+	/// <param name="element">The JSON object the dictionary was materialized from.</param>
+	/// <param name="keyType">The CLR type of the dictionary's keys.</param>
+	/// <param name="options">The options the dictionary was materialized through.</param>
+	/// <returns>Each parsed key, mapped to the property name as written and its value.</returns>
+	/// <remarks>
+	/// A later duplicate property name replaces an earlier one, as it does during deserialization. A
+	/// name the converter cannot parse is left out; System.Text.Json would have failed on it already.
+	/// A key type with no converter pairs nothing, the same as an unmatched key did before.
+	/// </remarks>
+	private static Dictionary<object, (string Name, JsonElement Element)> ParseKeys(JsonElement element, Type keyType, JsonSerializerOptions options)
 	{
-		null => null,
-		IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-		_ => key.ToString(),
-	};
+		Dictionary<object, (string Name, JsonElement Element)> keys = [];
+		JsonConverter converter;
+
+		try
+		{
+			converter = options.GetConverter(keyType);
+		}
+		catch (NotSupportedException)
+		{
+			return keys;
+		}
+
+		MethodInfo readKey = ReadKeyMethod.MakeGenericMethod(keyType);
+
+		foreach (JsonProperty property in element.EnumerateObject())
+		{
+			object? key;
+
+			try
+			{
+				key = readKey.Invoke(null, [converter, property.Name, options]);
+			}
+			catch (TargetInvocationException)
+			{
+				continue;
+			}
+
+			if (key is not null)
+			{
+				keys[key] = (property.Name, property.Value);
+			}
+		}
+
+		return keys;
+	}
+
+	private static readonly MethodInfo ReadKeyMethod =
+		typeof(GraphValidator).GetMethod(nameof(ReadKey), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+	/// <summary>
+	/// Reads one property name as a dictionary key of type <typeparamref name="TKey"/>.
+	/// </summary>
+	/// <typeparam name="TKey">The dictionary's key type.</typeparam>
+	/// <param name="converter">The converter System.Text.Json uses for <typeparamref name="TKey"/>.</param>
+	/// <param name="name">The property name as written in the JSON.</param>
+	/// <param name="options">The options the dictionary was materialized through.</param>
+	/// <returns>The parsed key.</returns>
+	private static object? ReadKey<TKey>(JsonConverter converter, string name, JsonSerializerOptions options)
+	{
+		// ReadAsPropertyName needs a reader positioned on a property name, so wrap the name in a
+		// one-property object and advance to it.
+		byte[] json = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, int> { [name] = 0 });
+		Utf8JsonReader reader = new(json);
+		reader.Read();
+		reader.Read();
+
+		return ((JsonConverter<TKey>)converter).ReadAsPropertyName(ref reader, typeof(TKey), options);
+	}
 
 	/// <summary>
 	/// Validates each element of a JSON array against the list entry materialized from it.
