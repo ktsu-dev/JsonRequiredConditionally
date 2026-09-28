@@ -63,6 +63,64 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void DateTimeKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<DateTime>("2024-01-01T00:00:00");
+
+	[TestMethod]
+	public void DateTimeOffsetKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<DateTimeOffset>("2024-01-01T00:00:00+10:00");
+
+	[TestMethod]
+	public void DateOnlyKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<DateOnly>("2024-01-01");
+
+	[TestMethod]
+	public void BoolKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<bool>("true");
+
+	[TestMethod]
+	public void GuidKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<Guid>("0F8FAD5B-D9CB-469F-A165-70867728950E");
+
+	[TestMethod]
+	public void EnumKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<Kind>("Advanced");
+
+	[TestMethod]
+	public void DoubleKeyedDictionaryValuesAreValidated() =>
+		AssertKeyedViolation<double>("1.5");
+
+	[TestMethod]
+	public void ValidDateTimeKeyedDictionaryDeserializes()
+	{
+		KeyedDictionaryConfig<DateTime>? config = JsonSerializer.Deserialize<KeyedDictionaryConfig<DateTime>>(
+			"""{"Map":{"2024-01-01T00:00:00":{"Kind":"Advanced","Tuning":"fast"},"2024-01-02T00:00:00":{"Kind":"Basic"}}}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.HasCount(2, config.Map);
+	}
+
+	[TestMethod]
+	public void DateTimeKeyedDictionaryReportsOnlyTheFailingEntry()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<KeyedDictionaryConfig<DateTime>>(
+				"""{"Map":{"2024-01-01T00:00:00":{"Kind":"Basic"},"2024-01-02T00:00:00":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.2024-01-02T00:00:00.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	private static void AssertKeyedViolation<TKey>(string key)
+		where TKey : notnull
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<KeyedDictionaryConfig<TKey>>(
+				"{\"Map\":{\"" + key + "\":{\"Kind\":\"Advanced\"}}}", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { $"Map.{key}.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
 	public void CyclicTypeGraphValidatesAtEveryLevel()
 	{
 		string json = """

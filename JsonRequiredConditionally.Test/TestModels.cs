@@ -223,6 +223,15 @@ public sealed class IntKeyedDictionaryConfig
 	public Dictionary<int, SimpleConfig> Items { get; set; } = [];
 }
 
+/// <summary>Holds a decorated child behind a dictionary with a caller-chosen key type.</summary>
+/// <typeparam name="TKey">The dictionary's key type.</typeparam>
+public sealed class KeyedDictionaryConfig<TKey>
+	where TKey : notnull
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public Dictionary<TKey, SimpleConfig> Map { get; set; } = [];
+}
+
 /// <summary>Holds a decorated child through a <c>[JsonInclude]</c>d internal property.</summary>
 public sealed class IncludedNonPublicMemberConfig
 {
