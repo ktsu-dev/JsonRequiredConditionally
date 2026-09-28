@@ -117,7 +117,8 @@ type. A container with no decorated member of its own (e.g. `List<Decorated>`) m
 its own top so validation, and path context, extend all the way down. Collection member types are
 unwrapped *recursively* (`EnumerateElementTypes`), so `List<List<T>>`, `T[][]` and
 `Dictionary<string, List<T>>` reach `T` — unwrapping one level left the holder unclaimed and collapsed
-`Grid[0][0].Tuning` to a bare `Tuning`.
+`Grid[0][0].Tuning` to a bare `Tuning`. `Nullable<T>` is unwrapped the same way, both for a member and for
+an element, so a `T?` or `List<T?>` of a decorated struct keeps its holder claimed and its paths intact.
 
 **Containment, not best effort**: the converter materializes through factory-free options, so the walk
 is the *sole* validator inside its subtree. Any serializer feature that changes what the graph means

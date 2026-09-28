@@ -526,7 +526,10 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
-			Type memberType = property.PropertyType;
+			// A `T?` member reaches `T`: `Nullable<T>`'s own contract has no properties, so without
+			// the unwrap a holder reaching a decorated struct only through `T?` went unclaimed and the
+			// struct was validated on its own, losing its path and every violation after the first.
+			Type memberType = UnwrapNullable(property.PropertyType);
 
 			if (memberType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(memberType))
 			{
@@ -576,8 +579,10 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
-			foreach (Type element in EnumerateImmediateElementTypes(current))
+			foreach (Type immediateElement in EnumerateImmediateElementTypes(current))
 			{
+				Type element = UnwrapNullable(immediateElement);
+
 				if (element != typeof(string) && typeof(IEnumerable).IsAssignableFrom(element))
 				{
 					pending.Enqueue(element);
@@ -589,6 +594,13 @@ internal static class RequirementRuleCompiler
 			}
 		}
 	}
+
+	/// <summary>
+	/// Unwraps <see cref="Nullable{T}"/> to <c>T</c>, leaving every other type as it is.
+	/// </summary>
+	/// <param name="type">The candidate type.</param>
+	/// <returns>The underlying type of a nullable value type, otherwise <paramref name="type"/>.</returns>
+	private static Type UnwrapNullable(Type type) => Nullable.GetUnderlyingType(type) ?? type;
 
 	/// <summary>
 	/// Determines the element type of a sequence, or the value type of a dictionary, from its
