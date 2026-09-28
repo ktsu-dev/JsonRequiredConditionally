@@ -448,6 +448,30 @@ public sealed class BucketConfig
 	public Dictionary<string, List<SimpleConfig>> Buckets { get; set; } = [];
 }
 
+/// <summary>A struct carrying a rule, reached only through <see cref="Nullable{T}"/> by its holders.</summary>
+[SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Test fixture is never compared for equality; adding members would obscure the exact struct shape the fixture exists to reproduce.")]
+public struct DecoratedStruct
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A holder whose only path to a decorated type is a nullable struct member.</summary>
+public sealed class NullableStructHolder
+{
+	public DecoratedStruct? Inner { get; set; }
+}
+
+/// <summary>A holder whose only path to a decorated type is a sequence of nullable structs.</summary>
+public sealed class NullableStructListHolder
+{
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<DecoratedStruct?> Items { get; set; } = [];
+}
+
 /// <summary>
 /// A struct whose rule is armed by its own CLR default (<see cref="Kind.Basic"/> is zero), so a
 /// never-populated instance of it looks like a violation to any walk that descends into it.

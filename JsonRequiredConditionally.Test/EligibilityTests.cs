@@ -109,6 +109,49 @@ public class EligibilityTests
 	}
 
 	[TestMethod]
+	public void NullableStructHolderKeepsTheFullPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NullableStructHolder>(
+				"""{"Inner":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Inner.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void NullableStructHolderAcceptsNullAndValidValues()
+	{
+		NullableStructHolder? absent = JsonSerializer.Deserialize<NullableStructHolder>(
+			"""{"Inner":null}""", CreateOptions());
+		NullableStructHolder? valid = JsonSerializer.Deserialize<NullableStructHolder>(
+			"""{"Inner":{"Kind":"Advanced","Tuning":"fast"}}""", CreateOptions());
+
+		Assert.IsNotNull(absent);
+		Assert.IsNull(absent.Inner);
+		Assert.IsNotNull(valid);
+		Assert.AreEqual("fast", valid.Inner!.Value.Tuning);
+	}
+
+	[TestMethod]
+	public void SequenceOfNullableStructsReportsEveryViolationWithItsPath()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NullableStructListHolder>(
+				"""{"Items":[{"Kind":"Advanced"},null,{"Kind":"Basic"},{"Kind":"Advanced"}]}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Items[0].Tuning", "Items[3].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void NullableStructHoldersAreClaimed()
+	{
+		JsonRequiredConditionallyConverterFactory factory = new();
+
+		Assert.IsTrue(factory.CanConvert(typeof(NullableStructHolder)));
+		Assert.IsTrue(factory.CanConvert(typeof(NullableStructListHolder)));
+	}
+
+	[TestMethod]
 	public void ValueTypeGetOnlyPropertyIsNotTreatedAsConstructorBound()
 	{
 		// System.Text.Json uses the implicit parameterless constructor for a value type without
