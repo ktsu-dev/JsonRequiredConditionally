@@ -1,6 +1,6 @@
-## v1.2.17 (patch)
+## v1.2.18 (patch)
 
-Changes since v1.2.16:
+Changes since v1.2.17:
 
-- Reject a top-level null for a non-nullable decorated struct [patch] ([@Claude](https://github.com/Claude))
+- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
 
