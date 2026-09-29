@@ -109,6 +109,46 @@ public class EligibilityTests
 	}
 
 	[TestMethod]
+	public void EnumerableInterfaceHolderKeepsTheFullPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<EnumerableHolder>(
+				"""{"Items":[{"Kind":"Basic"},{"Kind":"Advanced"}]}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Items[1].Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void DictionaryInterfaceHolderKeepsTheFullPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<InterfaceDictionaryHolder>(
+				"""{"Map":{"k":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.k.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void ReadOnlyDictionaryInterfaceHolderKeepsTheFullPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<ReadOnlyDictionaryHolder>(
+				"""{"Map":{"k":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.k.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void InterfaceCollectionHoldersAreClaimed()
+	{
+		JsonRequiredConditionallyConverterFactory factory = new();
+
+		Assert.IsTrue(factory.CanConvert(typeof(EnumerableHolder)));
+		Assert.IsTrue(factory.CanConvert(typeof(InterfaceDictionaryHolder)));
+		Assert.IsTrue(factory.CanConvert(typeof(ReadOnlyDictionaryHolder)));
+	}
+
+	[TestMethod]
 	public void NullableStructHolderKeepsTheFullPathPrefix()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
