@@ -1,6 +1,6 @@
-## v1.2.18 (patch)
+## v1.2.19 (patch)
 
-Changes since v1.2.17:
+Changes since v1.2.18:
 
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Keep the path prefix under IEnumerable, IDictionary and IReadOnlyDictionary members [patch] ([@Claude](https://github.com/Claude))
 
