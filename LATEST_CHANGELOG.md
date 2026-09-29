@@ -1,6 +1,4 @@
-## v1.2.19 (patch)
+## v1.2.19
 
-Changes since v1.2.18:
-
-- Keep the path prefix under IEnumerable, IDictionary and IReadOnlyDictionary members [patch] ([@Claude](https://github.com/Claude))
+No significant changes detected since v1.2.19.
 
