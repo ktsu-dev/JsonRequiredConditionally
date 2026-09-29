@@ -457,6 +457,24 @@ public sealed class BucketConfig
 	public Dictionary<string, List<SimpleConfig>> Buckets { get; set; } = [];
 }
 
+/// <summary>A sequence declared as <see cref="IEnumerable{T}"/> holding a decorated element type.</summary>
+public sealed class EnumerableHolder
+{
+	public IEnumerable<SimpleConfig>? Items { get; init; }
+}
+
+/// <summary>A dictionary declared as <see cref="IDictionary{TKey, TValue}"/> holding a decorated value type.</summary>
+public sealed class InterfaceDictionaryHolder
+{
+	public IDictionary<string, SimpleConfig>? Map { get; init; }
+}
+
+/// <summary>A dictionary declared as <see cref="IReadOnlyDictionary{TKey, TValue}"/> holding a decorated value type.</summary>
+public sealed class ReadOnlyDictionaryHolder
+{
+	public IReadOnlyDictionary<string, SimpleConfig>? Map { get; init; }
+}
+
 /// <summary>A struct carrying a rule, reached only through <see cref="Nullable{T}"/> by its holders.</summary>
 [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Test fixture is never compared for equality; adding members would obscure the exact struct shape the fixture exists to reproduce.")]
 public struct DecoratedStruct

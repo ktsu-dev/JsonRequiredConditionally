@@ -610,16 +610,22 @@ internal static class RequirementRuleCompiler
 	/// <returns>Zero or one type: the dictionary value type if the collection is a dictionary, otherwise the sequence element type.</returns>
 	private static IEnumerable<Type> EnumerateImmediateElementTypes(Type type)
 	{
-		foreach (Type candidateInterface in type.GetInterfaces())
+		// GetInterfaces on an interface type leaves out the interface itself, so a member declared as
+		// IEnumerable<T> or IDictionary<K,V> would otherwise have no element type at all.
+		Type[] candidates = type.IsInterface ? [type, .. type.GetInterfaces()] : type.GetInterfaces();
+
+		foreach (Type candidateInterface in candidates)
 		{
-			if (candidateInterface.IsGenericType && candidateInterface.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+			if (candidateInterface.IsGenericType
+				&& (candidateInterface.GetGenericTypeDefinition() == typeof(IDictionary<,>)
+					|| candidateInterface.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)))
 			{
 				yield return candidateInterface.GetGenericArguments()[1];
 				yield break;
 			}
 		}
 
-		foreach (Type candidateInterface in type.GetInterfaces())
+		foreach (Type candidateInterface in candidates)
 		{
 			if (candidateInterface.IsGenericType && candidateInterface.GetGenericTypeDefinition() == typeof(IEnumerable<>))
 			{
