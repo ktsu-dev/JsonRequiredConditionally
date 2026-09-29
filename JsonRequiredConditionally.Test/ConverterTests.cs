@@ -12,6 +12,35 @@ public class ConverterTests
 		new() { Converters = { new JsonStringEnumConverter(), new JsonRequiredConditionallyConverterFactory() } };
 
 	[TestMethod]
+	public void TopLevelNullForADecoratedStructThrowsLikeSystemTextJson()
+	{
+		// System.Text.Json rejects null for a non-nullable struct on its own. Registering the
+		// library must not loosen that into a silently zero-initialised value.
+		JsonException plain = Assert.ThrowsExactly<JsonException>(
+			() => JsonSerializer.Deserialize<DecoratedStruct>("null", JsonSerializerOptions.Default));
+		JsonException registered = Assert.ThrowsExactly<JsonException>(
+			() => JsonSerializer.Deserialize<DecoratedStruct>("null", CreateOptions()));
+
+		Assert.AreEqual(plain.Message, registered.Message);
+	}
+
+	[TestMethod]
+	public void TopLevelNullForANullableDecoratedStructIsNull()
+	{
+		DecoratedStruct? value = JsonSerializer.Deserialize<DecoratedStruct?>("null", CreateOptions());
+
+		Assert.IsNull(value);
+	}
+
+	[TestMethod]
+	public void TopLevelNullForADecoratedClassIsNull()
+	{
+		SimpleConfig? config = JsonSerializer.Deserialize<SimpleConfig>("null", CreateOptions());
+
+		Assert.IsNull(config);
+	}
+
+	[TestMethod]
 	public void AbsentRequiredPropertyThrows()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
