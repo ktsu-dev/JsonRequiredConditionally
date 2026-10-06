@@ -319,7 +319,7 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
-			if (!member.IsDefined(typeof(JsonRequiredAndNotEmptyAttribute), inherit: true))
+			if (!Attribute.IsDefined(member, typeof(JsonRequiredAndNotEmptyAttribute), inherit: true))
 			{
 				continue;
 			}
@@ -485,8 +485,8 @@ internal static class RequirementRuleCompiler
 		foreach (JsonPropertyInfo property in typeInfo.Properties)
 		{
 			if (property.AttributeProvider is MemberInfo member &&
-				(member.IsDefined(typeof(JsonRequiredIfSiblingIsAttribute), inherit: true) ||
-					member.IsDefined(typeof(JsonRequiredAndNotEmptyAttribute), inherit: true)))
+				(Attribute.IsDefined(member, typeof(JsonRequiredIfSiblingIsAttribute), inherit: true) ||
+					Attribute.IsDefined(member, typeof(JsonRequiredAndNotEmptyAttribute), inherit: true)))
 			{
 				return true;
 			}
