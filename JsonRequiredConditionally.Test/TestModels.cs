@@ -763,6 +763,43 @@ public sealed class NotEmptyConvertedConfig
 	public Label? Label { get; set; }
 }
 
+/// <summary>Base declaration of a decorated virtual property under [JsonRequiredAndNotEmpty].</summary>
+public class OverrideNotEmptyBase
+{
+	[JsonRequiredAndNotEmpty]
+	public virtual string? Name { get; set; }
+}
+
+/// <summary>Overrides the decorated property, its only decorated member.</summary>
+public class OverrideNotEmptyDerived : OverrideNotEmptyBase
+{
+	public override string? Name { get; set; }
+}
+
+/// <summary>Overrides the decorated property alongside another, directly decorated member.</summary>
+public class OverrideNotEmptyDerivedWithOther : OverrideNotEmptyBase
+{
+	public override string? Name { get; set; }
+
+	[JsonRequiredAndNotEmpty]
+	public string? Other { get; set; }
+}
+
+/// <summary>Base declaration of a decorated virtual property under [JsonRequiredIfSiblingIs].</summary>
+public class OverrideSiblingBase
+{
+	public int Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), 1)]
+	public virtual string? Tuning { get; set; }
+}
+
+/// <summary>Overrides the decorated property, its only decorated member.</summary>
+public class OverrideSiblingDerived : OverrideSiblingBase
+{
+	public override string? Tuning { get; set; }
+}
+
 /// <summary>A decorated type reached below collections, for error-location tests.</summary>
 public class ErrorLocationSibling
 {
