@@ -36,7 +36,8 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 	/// <inheritdoc/>
 	/// <exception cref="JsonException">
-	/// The JSON is <c>null</c> and <typeparamref name="T"/> is a non-nullable value type.
+	/// The JSON is <c>null</c> and <typeparamref name="T"/> is a non-nullable value type, or
+	/// System.Text.Json cannot deserialize the element.
 	/// </exception>
 	/// <exception cref="NotSupportedException">
 	/// <paramref name="options"/> or <typeparamref name="T"/> configure
@@ -63,9 +64,25 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 			return default;
 		}
 
+		// A subtree below the document root is re-deserialized as a standalone document, so the
+		// Path and position on System.Text.Json's own errors would be relative to it.
+		bool isNested = reader.CurrentDepth > 0;
+
 		using JsonDocument document = JsonDocument.ParseValue(ref reader);
 
-		T? value = JsonSerializer.Deserialize<T>(document.RootElement.GetRawText(), plainOptions);
+		T? value;
+
+		try
+		{
+			value = JsonSerializer.Deserialize<T>(document.RootElement.GetRawText(), plainOptions);
+		}
+		catch (JsonException exception) when (isNested && exception is not JsonRequiredConditionallyException)
+		{
+			// A message-less JsonException with a null Path gets System.Text.Json's own path and
+			// position for this element in the original payload. The relative error, with its
+			// path inside the element, is kept as the inner exception.
+			throw new JsonException(null, exception);
+		}
 
 		if (value is not null)
 		{

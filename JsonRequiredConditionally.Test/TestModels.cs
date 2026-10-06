@@ -762,3 +762,19 @@ public sealed class NotEmptyConvertedConfig
 	[JsonRequiredAndNotEmpty]
 	public Label? Label { get; set; }
 }
+
+/// <summary>A decorated type reached below collections, for error-location tests.</summary>
+public class ErrorLocationSibling
+{
+	public int Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), 1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A claimed type whose only decorated member lives one level down.</summary>
+public class ErrorLocationOuter
+{
+	[System.Text.Json.Serialization.JsonPropertyName("x")]
+	public ErrorLocationSibling? X { get; set; }
+}
