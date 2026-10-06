@@ -1,6 +1,7 @@
-## v1.2.20 (patch)
+## v1.2.21 (patch)
 
-Changes since v1.2.19:
+Changes since v1.2.20:
 
-- Enforce requirements on overrides of decorated virtual properties [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Merge remote-tracking branch 'origin/main' into fix/inner-error-location ([@matt-edmondson](https://github.com/matt-edmondson))
+- Report System.Text.Json errors at their place in the original payload [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
 
