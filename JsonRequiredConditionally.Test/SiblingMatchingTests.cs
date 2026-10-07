@@ -105,4 +105,58 @@ public class SiblingMatchingTests
 		Assert.Contains(nameof(UnconvertibleSiblingConfig.Id), exception.Message);
 		Assert.Contains(nameof(Guid), exception.Message);
 	}
+
+	[TestMethod]
+	public void ObjectSiblingAgainstStringConstantThrowsOnFirstUse()
+	{
+		// An object member materializes as a boxed JsonElement, which never equals "Advanced", so
+		// the rule used to compile and then never fire against {"Mode":"Advanced"}.
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<ObjectStringSiblingConfig>(
+				"""{"Mode":"Advanced"}""", CreateOptions()));
+
+		Assert.Contains(nameof(ObjectStringSiblingConfig), exception.Message);
+		Assert.Contains(nameof(ObjectStringSiblingConfig.Mode), exception.Message);
+		Assert.Contains(nameof(Object), exception.Message);
+	}
+
+	[TestMethod]
+	public void ObjectSiblingAgainstNumericConstantThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<ObjectNumberSiblingConfig>(
+				"""{"Level":3}""", CreateOptions()));
+
+		Assert.Contains(nameof(ObjectNumberSiblingConfig), exception.Message);
+		Assert.Contains(nameof(ObjectNumberSiblingConfig.Level), exception.Message);
+	}
+
+	[TestMethod]
+	public void JsonElementSiblingThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<JsonElementSiblingConfig>(
+				"""{"Mode":"Advanced"}""", CreateOptions()));
+
+		Assert.Contains(nameof(JsonElement), exception.Message);
+	}
+
+	[TestMethod]
+	public void JsonNodeSiblingThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<JsonNodeSiblingConfig>(
+				"""{"Mode":"Advanced"}""", CreateOptions()));
+
+		Assert.Contains(nameof(JsonNodeSiblingConfig), exception.Message);
+	}
+
+	[TestMethod]
+	public void ObjectSiblingAgainstNullStillFires()
+	{
+		// A null constant is an explicit choice and a null object sibling does equal it, so it stays admissible.
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<ObjectNullSiblingConfig>(
+				"""{"Mode":null}""", CreateOptions()));
+	}
 }

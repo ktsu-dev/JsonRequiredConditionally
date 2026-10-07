@@ -936,3 +936,48 @@ public class ProtectedCtorBoundBase
 
 /// <summary>Binds the base's get-only <c>Child</c> through its own public constructor.</summary>
 public sealed class BindingCtorDerived(AdvancedByDefaultConfig child) : ProtectedCtorBoundBase(child);
+
+/// <summary>An <c>object</c> sibling compared against a string constant it will never equal at runtime.</summary>
+public sealed class ObjectStringSiblingConfig
+{
+	public object? Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), "Advanced")]
+	public int? Tuning { get; set; }
+}
+
+/// <summary>An <c>object</c> sibling compared against a numeric constant it will never equal at runtime.</summary>
+public sealed class ObjectNumberSiblingConfig
+{
+	public object? Level { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Level), 3)]
+	public int? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="System.Text.Json.JsonElement"/> sibling compared against a string constant.</summary>
+public sealed class JsonElementSiblingConfig
+{
+	public System.Text.Json.JsonElement Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), "Advanced")]
+	public int? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="System.Text.Json.Nodes.JsonNode"/> sibling compared against a string constant.</summary>
+public sealed class JsonNodeSiblingConfig
+{
+	public System.Text.Json.Nodes.JsonNode? Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), "Advanced")]
+	public int? Tuning { get; set; }
+}
+
+/// <summary>An <c>object</c> sibling compared against <c>null</c>, which a null sibling does equal.</summary>
+public sealed class ObjectNullSiblingConfig
+{
+	public object? Mode { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Mode), null)]
+	public int? Tuning { get; set; }
+}

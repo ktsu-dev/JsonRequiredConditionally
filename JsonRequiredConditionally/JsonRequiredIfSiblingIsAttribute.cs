@@ -10,6 +10,12 @@ namespace ktsu.JsonRequiredConditionally;
 /// Multiple attributes on one member group implicitly by <see cref="SiblingName"/>. Values within
 /// a group are combined with OR; the groups themselves are combined with AND. The member is
 /// considered satisfied when it is physically present in the payload, even if its value is null.
+/// <para>
+/// The sibling must have a concrete declared type. A sibling declared as <see cref="object"/>,
+/// <see cref="System.Text.Json.JsonElement"/> or <see cref="System.Text.Json.Nodes.JsonNode"/> is
+/// materialized as an uninterpreted JSON value that never equals a constant, so pairing one with a
+/// non-null value throws <see cref="InvalidOperationException"/> the first time the type is used.
+/// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = true, Inherited = true)]
 public sealed class JsonRequiredIfSiblingIsAttribute : Attribute

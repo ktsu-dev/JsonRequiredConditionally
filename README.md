@@ -154,6 +154,11 @@ String siblings are still compared ordinally against string constants only; a nu
 formatted into a string to make it match. **A pairing that could never match throws
 `InvalidOperationException`** at first use, for the same reason an unresolvable sibling name does.
 
+**A sibling declared as `object`, `JsonElement` or `JsonNode` is rejected** for any non-null value.
+System.Text.Json materializes such a member as an uninterpreted JSON value, which never equals an
+attribute constant, so the rule would compile and then never fire. Declare the sibling with a concrete
+type (`string`, a number, or an enum) instead. A `null` value is still accepted.
+
 **Members System.Text.Json would not populate are not validated below.** A get-only property on a
 `struct` is one of these: System.Text.Json uses a value type's implicit parameterless constructor
 unless an explicit `[JsonConstructor]` says otherwise, so such a property keeps its default and the
