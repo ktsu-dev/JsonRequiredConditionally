@@ -92,7 +92,9 @@ that compiles and applies its rules:
 from `Type.GetProperties()`. This is what keeps `[JsonIgnore]`, `IncludeFields`, `[JsonInclude]` on
 non-public members, get-only properties, and constructor binding behaving identically in validation and
 in deserialization. It is also why a type behind its own custom `JsonConverter` cannot be validated:
-System.Text.Json leaves `JsonTypeInfo.Properties` empty for such a type.
+System.Text.Json leaves `JsonTypeInfo.Properties` empty for such a type. A property-level
+`[JsonConverter]` leaves the member type's contract intact, so both the walk and reachability check
+`JsonPropertyInfo.CustomConverter` themselves and stop at such a member, drawing the same boundary.
 
 The one deliberate exception is *eligibility*, which a converter factory must decide from a `Type`
 alone, with no caller options in hand. `HasDirectlyDecoratedMember` therefore probes with
