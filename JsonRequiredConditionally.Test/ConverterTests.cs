@@ -172,4 +172,41 @@ public class ConverterTests
 
 		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
 	}
+
+	[TestMethod]
+	public void SubclassResolvesABasePrivateSiblingProperty()
+	{
+		PrivateSiblingPropertyDerived? value = JsonSerializer.Deserialize<PrivateSiblingPropertyDerived>(
+			"""{"Kind":"Basic"}""", CreateOptions());
+
+		Assert.IsNotNull(value);
+	}
+
+	[TestMethod]
+	public void SubclassEnforcesTheBaseRuleOnAPrivateSiblingProperty()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<PrivateSiblingPropertyDerived>(
+				"""{"Kind":"Advanced"}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void SubclassResolvesABasePrivateSiblingField()
+	{
+		PrivateSiblingFieldBasicDerived? value = JsonSerializer.Deserialize<PrivateSiblingFieldBasicDerived>(
+			"""{"Extra":"x"}""", CreateOptions());
+
+		Assert.IsNotNull(value);
+	}
+
+	[TestMethod]
+	public void SubclassEnforcesTheBaseRuleOnAPrivateSiblingField()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<PrivateSiblingFieldAdvancedDerived>("{}", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
+	}
 }
