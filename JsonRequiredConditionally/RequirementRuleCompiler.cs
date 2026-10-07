@@ -683,7 +683,10 @@ internal static class RequirementRuleCompiler
 	/// Determines whether System.Text.Json would actually populate a member during deserialization
 	/// -- i.e. whether validating it against the incoming JSON means anything at all.
 	/// </summary>
-	/// <param name="declaringTypeInfo">The contract of the type declaring the property.</param>
+	/// <param name="declaringTypeInfo">
+	/// The contract the property belongs to: the type being deserialized, which for an inherited
+	/// property is not the type that declares it in C#.
+	/// </param>
 	/// <param name="property">The property to check.</param>
 	/// <returns>True when the property is directly settable, populated in place, or bound to a deserialization constructor parameter.</returns>
 	/// <remarks>
@@ -721,17 +724,30 @@ internal static class RequirementRuleCompiler
 			return true;
 		}
 
-		return SerializerFeatureGuard.PopulatesInPlace(declaringTypeInfo, property) || IsConstructorBound(property);
+		return SerializerFeatureGuard.PopulatesInPlace(declaringTypeInfo, property) || IsConstructorBound(declaringTypeInfo.Type, property);
 	}
 
-	private static bool IsConstructorBound(JsonPropertyInfo property)
+	/// <summary>
+	/// Determines whether a get-only property is bound to a parameter of the constructor System.Text.Json
+	/// would use for <paramref name="deserializedType"/>.
+	/// </summary>
+	/// <param name="deserializedType">The type being deserialized.</param>
+	/// <param name="property">The property to check.</param>
+	/// <returns>True when a parameter of that constructor binds to the property.</returns>
+	/// <remarks>
+	/// The constructor comes from the type being deserialized, never from the property's C# declaring
+	/// type: System.Text.Json constructs the former, so for an inherited get-only property the base
+	/// class's constructor is irrelevant. Asking the base claimed a property the derived constructor
+	/// never binds, then validated a default instance against JSON the serializer discarded.
+	/// </remarks>
+	private static bool IsConstructorBound(Type deserializedType, JsonPropertyInfo property)
 	{
-		if (property.AttributeProvider is not MemberInfo member || member.DeclaringType is null)
+		if (property.AttributeProvider is not MemberInfo member)
 		{
 			return false;
 		}
 
-		ConstructorInfo? constructor = SelectDeserializationConstructor(member.DeclaringType);
+		ConstructorInfo? constructor = SelectDeserializationConstructor(deserializedType);
 
 		if (constructor is null)
 		{

@@ -246,4 +246,24 @@ public class EligibilityTests
 	{
 		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(PlainConfig)));
 	}
+
+	[TestMethod]
+	public void InheritedGetOnlyPropertyIgnoredByTheDerivedConstructorIsNotValidated()
+	{
+		ParameterlessCtorDerived? value = JsonSerializer.Deserialize<ParameterlessCtorDerived>(
+			"""{"Child":{"Kind":"Basic"},"Name":"n"}""", CreateOptions());
+
+		Assert.IsNotNull(value);
+		Assert.AreEqual("n", value.Name);
+	}
+
+	[TestMethod]
+	public void InheritedGetOnlyPropertyBoundByTheDerivedConstructorIsValidated()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<BindingCtorDerived>(
+				"""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
+	}
 }
