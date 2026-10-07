@@ -1,6 +1,7 @@
-## v1.2.22 (patch)
+## v1.2.23 (patch)
 
-Changes since v1.2.21:
+Changes since v1.2.22:
 
-- Stop walking into members behind a property-level converter [patch] ([@Claude](https://github.com/Claude))
+- Merge remote-tracking branch 'origin/main' into fix/constructor-from-runtime-type ([@Claude](https://github.com/Claude))
+- Pick the binding constructor from the type being deserialized [patch] ([@Claude](https://github.com/Claude))
 
