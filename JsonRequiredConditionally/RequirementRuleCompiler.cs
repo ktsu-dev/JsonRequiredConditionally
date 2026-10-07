@@ -560,6 +560,14 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
+			// The walk never descends through a property-level [JsonConverter] (see GraphValidator.Walk),
+			// so nothing behind one is reachable; following it would only claim and buffer the holder
+			// for nothing.
+			if (property.CustomConverter is not null)
+			{
+				continue;
+			}
+
 			// A `T?` member reaches `T`: `Nullable<T>`'s own contract has no properties, so without
 			// the unwrap a holder reaching a decorated struct only through `T?` went unclaimed and the
 			// struct was validated on its own, losing its path and every violation after the first.
