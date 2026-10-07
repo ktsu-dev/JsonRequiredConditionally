@@ -460,4 +460,40 @@ public class NestingTests
 		Assert.AreSequenceEqual(new List<string> { "Children[0].Name" }, [.. exception.MissingProperties]);
 		Assert.AreSequenceEqual(new List<string> { "Children[1].Name" }, [.. exception.EmptyProperties]);
 	}
+
+	[TestMethod]
+	public void PropertyLevelConverterMemberIsNotWalked()
+	{
+		const string json = /*lang=json,strict*/ """{"Child":{"k":"Advanced","t":"fast"}}""";
+
+		PropertyConverterHolder? holder = JsonSerializer.Deserialize<PropertyConverterHolder>(json, CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual(Kind.Advanced, holder.Child!.Kind);
+		Assert.AreEqual("fast", holder.Child.Tuning);
+	}
+
+	[TestMethod]
+	public void PropertyLevelConverterListMemberIsNotWalked()
+	{
+		const string json = /*lang=json,strict*/ """{"Children":[{"k":"Basic"},{"k":"Advanced","t":"fast"}]}""";
+
+		PropertyConverterListHolder? holder = JsonSerializer.Deserialize<PropertyConverterListHolder>(json, CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.IsNotNull(holder.Children);
+		Assert.HasCount(2, holder.Children);
+		Assert.AreEqual("fast", holder.Children[1].Tuning);
+	}
+
+	[TestMethod]
+	public void PropertyLevelConverterDoesNotStopValidationOfOtherMembers()
+	{
+		const string json = /*lang=json,strict*/ """{"Compact":{"k":"Advanced","t":"fast"},"Plain":{"Kind":"Advanced"}}""";
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<PropertyConverterMixedHolder>(json, CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Plain.Tuning" }, [.. exception.MissingProperties]);
+	}
 }

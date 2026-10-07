@@ -127,6 +127,16 @@ internal static class GraphValidator
 				continue;
 			}
 
+			// A property-level [JsonConverter] read this member's JSON in a shape only that converter
+			// knows, so the member type's own rules cannot be matched against it. This is the same
+			// boundary a type-level converter draws, which System.Text.Json enforces for us by
+			// leaving Properties empty; a property-level one leaves the member type's contract intact,
+			// so the walk has to stop here itself.
+			if (property.CustomConverter is not null)
+			{
+				continue;
+			}
+
 			// IsPopulatedByDeserialization already confirmed Get is non-null; the compiler cannot
 			// see that across the method call.
 			object? value = property.Get!(instance);
