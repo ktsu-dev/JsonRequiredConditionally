@@ -899,3 +899,40 @@ public sealed class PropertyConverterMixedHolder
 
 	public SimpleConfig? Plain { get; set; }
 }
+
+/// <summary>A decorated child whose default instance would violate its own rule.</summary>
+public sealed class AdvancedByDefaultConfig
+{
+	public Kind Kind { get; set; } = Kind.Advanced;
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Binds its get-only <see cref="Child"/> through its own public constructor.</summary>
+public class PublicCtorBoundBase(AdvancedByDefaultConfig child)
+{
+	public AdvancedByDefaultConfig Child { get; } = child;
+}
+
+/// <summary>Uses a parameterless constructor, so System.Text.Json never binds the base's get-only <c>Child</c>.</summary>
+public sealed class ParameterlessCtorDerived : PublicCtorBoundBase
+{
+	public ParameterlessCtorDerived()
+		: base(new AdvancedByDefaultConfig())
+	{
+	}
+
+	public string? Name { get; set; }
+}
+
+/// <summary>Binds its get-only <see cref="Child"/> only through a protected constructor.</summary>
+public class ProtectedCtorBoundBase
+{
+	protected ProtectedCtorBoundBase(AdvancedByDefaultConfig child) => Child = child;
+
+	public AdvancedByDefaultConfig Child { get; }
+}
+
+/// <summary>Binds the base's get-only <c>Child</c> through its own public constructor.</summary>
+public sealed class BindingCtorDerived(AdvancedByDefaultConfig child) : ProtectedCtorBoundBase(child);
