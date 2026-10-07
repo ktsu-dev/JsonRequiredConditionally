@@ -317,7 +317,10 @@ container.
 
 **Types behind a custom converter are not validated.** System.Text.Json exposes no property model for
 a type that has its own `JsonConverter`, so the walk cannot descend through one. Decorated types
-reachable only behind a custom converter are skipped.
+reachable only behind a custom converter are skipped. The same holds for a member carrying a
+property-level `[JsonConverter]`: that converter decides the member's JSON shape, so the walk does not
+descend into the member's value, even when the member's type has rules of its own. Rules on the
+decorated member itself, such as `[JsonRequiredAndNotEmpty]`, are still enforced.
 
 **Polymorphic hierarchies are not claimed, and therefore not validated.** A type carrying
 `[JsonPolymorphic]` or `[JsonDerivedType]`, or deriving from one that does, is skipped: System.Text.Json

@@ -816,6 +816,90 @@ public class ErrorLocationOuter
 	public ErrorLocationSibling? X { get; set; }
 }
 
+/// <summary>Reads <see cref="SimpleConfig"/> from a compact shape, <c>{"k":...,"t":...}</c>, unlike its own contract.</summary>
+public sealed class CompactSimpleConfigConverter : JsonConverter<SimpleConfig>
+{
+	public override SimpleConfig Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		using JsonDocument document = JsonDocument.ParseValue(ref reader);
+		JsonElement root = document.RootElement;
+
+		return new SimpleConfig
+		{
+			Kind = Enum.Parse<Kind>(root.GetProperty("k").GetString()!),
+			Tuning = root.TryGetProperty("t", out JsonElement tuning) ? tuning.GetString() : null,
+		};
+	}
+
+	public override void Write(Utf8JsonWriter writer, SimpleConfig value, JsonSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(writer);
+		ArgumentNullException.ThrowIfNull(value);
+
+		writer.WriteStartObject();
+		writer.WriteString("k", value.Kind.ToString());
+		writer.WriteString("t", value.Tuning);
+		writer.WriteEndObject();
+	}
+}
+
+/// <summary>Reads a list of <see cref="SimpleConfig"/> through <see cref="CompactSimpleConfigConverter"/>.</summary>
+public sealed class CompactSimpleConfigListConverter : JsonConverter<List<SimpleConfig>>
+{
+	private static readonly CompactSimpleConfigConverter Element = new();
+
+	public override List<SimpleConfig> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		List<SimpleConfig> items = [];
+
+		while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+		{
+			items.Add(Element.Read(ref reader, typeof(SimpleConfig), options));
+		}
+
+		return items;
+	}
+
+	public override void Write(Utf8JsonWriter writer, List<SimpleConfig> value, JsonSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(writer);
+		ArgumentNullException.ThrowIfNull(value);
+
+		writer.WriteStartArray();
+		foreach (SimpleConfig item in value)
+		{
+			Element.Write(writer, item, options);
+		}
+
+		writer.WriteEndArray();
+	}
+}
+
+/// <summary>A decorated type reached only through a property-level converter with a different JSON shape.</summary>
+public sealed class PropertyConverterHolder
+{
+	[JsonConverter(typeof(CompactSimpleConfigConverter))]
+	public SimpleConfig? Child { get; set; }
+}
+
+/// <summary>A list of a decorated type behind a property-level converter with a different JSON shape.</summary>
+public sealed class PropertyConverterListHolder
+{
+	[JsonConverter(typeof(CompactSimpleConfigListConverter))]
+	[SuppressMessage("Design", "CA1002:Do not expose generic lists", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public List<SimpleConfig>? Children { get; set; }
+}
+
+/// <summary>A converter-bound member next to a plainly reached decorated one, which must still be validated.</summary>
+public sealed class PropertyConverterMixedHolder
+{
+	[JsonConverter(typeof(CompactSimpleConfigConverter))]
+	public SimpleConfig? Compact { get; set; }
+
+	public SimpleConfig? Plain { get; set; }
+}
+
 /// <summary>A decorated child whose default instance would violate its own rule.</summary>
 public sealed class AdvancedByDefaultConfig
 {
