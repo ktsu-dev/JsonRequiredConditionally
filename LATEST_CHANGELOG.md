@@ -1,4 +1,6 @@
-## v1.2.21
+## v1.2.22 (patch)
 
-No significant changes detected since v1.2.21.
+Changes since v1.2.21:
+
+- Stop walking into members behind a property-level converter [patch] ([@Claude](https://github.com/Claude))
 
