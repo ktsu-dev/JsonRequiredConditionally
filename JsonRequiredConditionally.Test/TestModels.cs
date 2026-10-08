@@ -981,3 +981,50 @@ public sealed class ObjectNullSiblingConfig
 	[JsonRequiredIfSiblingIs(nameof(Mode), null)]
 	public int? Tuning { get; set; }
 }
+
+/// <summary>A base class whose rule names its own private, <c>[JsonInclude]</c>d sibling property.</summary>
+public class PrivateSiblingPropertyBase
+{
+	[JsonInclude]
+	private Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Inherits a rule whose sibling is a private property of the base class.</summary>
+public sealed class PrivateSiblingPropertyDerived : PrivateSiblingPropertyBase
+{
+	public string? Extra { get; set; }
+}
+
+/// <summary>A base class whose rule names its own private field, set only through its constructor.</summary>
+public class PrivateSiblingFieldBase
+{
+	private readonly Kind kind;
+
+	public PrivateSiblingFieldBase()
+		: this(Kind.Basic)
+	{
+	}
+
+	protected PrivateSiblingFieldBase(Kind kind) => this.kind = kind;
+
+	[JsonRequiredIfSiblingIs(nameof(kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Inherits a rule whose sibling is a private field of the base class, left at its default.</summary>
+public sealed class PrivateSiblingFieldBasicDerived : PrivateSiblingFieldBase
+{
+	public string? Extra { get; set; }
+}
+
+/// <summary>Inherits a rule whose sibling is a private field of the base class, set to satisfy the condition.</summary>
+public sealed class PrivateSiblingFieldAdvancedDerived : PrivateSiblingFieldBase
+{
+	public PrivateSiblingFieldAdvancedDerived()
+		: base(Kind.Advanced)
+	{
+	}
+}

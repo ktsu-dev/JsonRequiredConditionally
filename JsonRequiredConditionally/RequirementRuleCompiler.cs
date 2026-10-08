@@ -430,28 +430,62 @@ internal static class RequirementRuleCompiler
 
 	private static PropertyInfo? FindProperty(Type type, string siblingName)
 	{
+		PropertyInfo? property;
+
 		try
 		{
-			return type.GetProperty(siblingName, SiblingFlags);
+			property = type.GetProperty(siblingName, SiblingFlags);
 		}
 		catch (AmbiguousMatchException)
 		{
 			// A derived type hides a same-named base member; prefer the most-derived one.
-			return type.GetProperty(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
+			property = type.GetProperty(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
 		}
+
+		return property ?? FindInBaseTypes(type, t => t.GetProperty(siblingName, SiblingFlags | BindingFlags.DeclaredOnly));
 	}
 
 	private static FieldInfo? FindField(Type type, string siblingName)
 	{
+		FieldInfo? field;
+
 		try
 		{
-			return type.GetField(siblingName, SiblingFlags);
+			field = type.GetField(siblingName, SiblingFlags);
 		}
 		catch (AmbiguousMatchException)
 		{
 			// A derived type hides a same-named base member; prefer the most-derived one.
-			return type.GetField(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
+			field = type.GetField(siblingName, SiblingFlags | BindingFlags.DeclaredOnly);
 		}
+
+		return field ?? FindInBaseTypes(type, t => t.GetField(siblingName, SiblingFlags | BindingFlags.DeclaredOnly));
+	}
+
+	/// <summary>
+	/// Searches the base types of <paramref name="type"/>, nearest first, for a member declared on one
+	/// of them.
+	/// </summary>
+	/// <remarks>
+	/// Reflection never returns a base class's <em>private</em> members when queried on a derived
+	/// type, so a rule a base class declares against its own private sibling resolved for the base
+	/// and threw for every subclass. Walking the chain nearest first keeps "most-derived wins" for a
+	/// hidden member.
+	/// </remarks>
+	private static TMember? FindInBaseTypes<TMember>(Type type, Func<Type, TMember?> findDeclared)
+		where TMember : MemberInfo
+	{
+		for (Type? current = type.BaseType; current is not null; current = current.BaseType)
+		{
+			TMember? member = findDeclared(current);
+
+			if (member is not null)
+			{
+				return member;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>
