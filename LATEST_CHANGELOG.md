@@ -1,8 +1,7 @@
-## v1.2.24 (patch)
+## v1.2.25 (patch)
 
-Changes since v1.2.23:
+Changes since v1.2.24:
 
-- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling ([@Claude](https://github.com/Claude))
-- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling ([@Claude](https://github.com/Claude))
-- Resolve a base class's private sibling when deserializing a subclass [patch] ([@Claude](https://github.com/Claude))
+- Merge main into fix/reject-opaque-siblings ([@matt-edmondson](https://github.com/matt-edmondson))
+- Reject object, JsonElement and JsonNode siblings at rule compilation [patch] ([@Claude](https://github.com/Claude))
 
