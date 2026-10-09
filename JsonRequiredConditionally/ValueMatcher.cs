@@ -3,6 +3,8 @@
 namespace ktsu.JsonRequiredConditionally;
 
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 /// <summary>
 /// Compares a sibling's runtime value against the constant supplied to an attribute.
@@ -60,6 +62,10 @@ internal static class ValueMatcher
 	/// compilation can fail loudly on a pairing that would otherwise be a rule that quietly never
 	/// fires. A null expected value is always admissible -- it is an explicit choice by the author,
 	/// and it matches a null sibling value.
+	/// <para>
+	/// A sibling declared as <see cref="object"/>, <see cref="JsonElement"/> or <see cref="JsonNode"/>
+	/// is rejected for every non-null constant (see <see cref="IsOpaqueSiblingType"/>).
+	/// </para>
 	/// </remarks>
 	internal static bool CanEverMatch(Type siblingType, object? expected)
 	{
@@ -70,7 +76,12 @@ internal static class ValueMatcher
 
 		Type target = Nullable.GetUnderlyingType(siblingType) ?? siblingType;
 
-		if (target == typeof(object) || target.IsInstanceOfType(expected))
+		if (IsOpaqueSiblingType(target))
+		{
+			return false;
+		}
+
+		if (target.IsInstanceOfType(expected))
 		{
 			return true;
 		}
@@ -84,6 +95,21 @@ internal static class ValueMatcher
 
 		return TryWiden(expected, target, out _);
 	}
+
+	/// <summary>
+	/// Determines whether a sibling's declared type leaves its value as an uninterpreted JSON tree.
+	/// </summary>
+	/// <param name="siblingType">The sibling member's declared type, with any <see cref="Nullable{T}"/> removed.</param>
+	/// <returns>True for <see cref="object"/>, <see cref="JsonElement"/> and any <see cref="JsonNode"/> type.</returns>
+	/// <remarks>
+	/// System.Text.Json materializes an <see cref="object"/> member as a boxed <see cref="JsonElement"/>,
+	/// and a <see cref="JsonElement"/> or <see cref="JsonNode"/> member as itself. None of them ever
+	/// equals an attribute constant, so a rule against one compiles and then never fires.
+	/// </remarks>
+	internal static bool IsOpaqueSiblingType(Type siblingType) =>
+		siblingType == typeof(object)
+		|| siblingType == typeof(JsonElement)
+		|| typeof(JsonNode).IsAssignableFrom(siblingType);
 
 	private static bool MatchesAsEnum(object actual, object expected, Type enumType)
 	{

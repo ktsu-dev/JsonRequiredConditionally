@@ -400,8 +400,12 @@ internal static class RequirementRuleCompiler
 			_ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
 		};
 
+		string reason = ValueMatcher.IsOpaqueSiblingType(Nullable.GetUnderlyingType(siblingType) ?? siblingType)
+			? " System.Text.Json materializes such a sibling as an uninterpreted JSON value, so declare it with a concrete type such as string, a number or an enum."
+			: string.Empty;
+
 		throw new InvalidOperationException(
-			$"[{nameof(JsonRequiredIfSiblingIsAttribute)}] on member '{memberName}' of type '{type.Name}' compares sibling '{siblingName}' against {described}, which can never equal a value of the sibling's type '{siblingType.Name}'.");
+			$"[{nameof(JsonRequiredIfSiblingIsAttribute)}] on member '{memberName}' of type '{type.Name}' compares sibling '{siblingName}' against {described}, which can never equal a value of the sibling's type '{siblingType.Name}'.{reason}");
 	}
 
 	private static Func<object, object?> CreateAccessor(Type type, string siblingName, out Type siblingType)

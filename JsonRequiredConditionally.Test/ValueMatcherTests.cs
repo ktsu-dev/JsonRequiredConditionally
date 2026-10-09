@@ -162,7 +162,7 @@ public class ValueMatcherTests
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), "Advanced"));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), 1));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind?), Kind.Advanced));
-		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(object), "anything"));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(object), null));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Guid), null));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(string), "text"));
 	}
@@ -173,5 +173,11 @@ public class ValueMatcherTests
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Guid), 1));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), "NoSuchMember"));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(string), 1));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(object), "anything"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(object), 3));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.JsonElement), "anything"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.JsonElement?), "anything"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.Nodes.JsonNode), "anything"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.Nodes.JsonValue), 3));
 	}
 }
