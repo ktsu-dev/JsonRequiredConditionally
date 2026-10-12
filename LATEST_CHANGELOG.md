@@ -1,7 +1,6 @@
-## v1.2.25 (patch)
+## v1.2.26-pre.1 (prerelease)
 
-Changes since v1.2.24:
+Changes since v1.2.25:
 
-- Merge main into fix/reject-opaque-siblings ([@matt-edmondson](https://github.com/matt-edmondson))
-- Reject object, JsonElement and JsonNode siblings at rule compilation [patch] ([@Claude](https://github.com/Claude))
+- Bump Polyfill from 11.4.3 to 11.4.4 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
