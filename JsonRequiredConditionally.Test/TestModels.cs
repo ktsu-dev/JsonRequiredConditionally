@@ -1028,3 +1028,14 @@ public sealed class PrivateSiblingFieldAdvancedDerived : PrivateSiblingFieldBase
 	{
 	}
 }
+
+/// <summary>A decorated type that can point back at itself, for cycle handling on write.</summary>
+public sealed class CyclicDecoratedConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public CyclicDecoratedConfig? Next { get; set; }
+}
