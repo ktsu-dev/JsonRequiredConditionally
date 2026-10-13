@@ -33,16 +33,11 @@ internal static class RequirementRuleCompiler
 	/// <summary>
 	/// A reflection-based options instance used only to ask System.Text.Json's own contract model
 	/// which members of a type it would actually serialize, for the purpose of deciding whether a
-	/// type transitively reaches a decorated member. This is deliberately not derived from any
-	/// caller's options -- <see cref="JsonConverterFactory"/>'s
+	/// type carries or transitively reaches a decorated member. This is deliberately not derived
+	/// from any caller's options -- <see cref="JsonConverterFactory"/>'s
 	/// <c>CanConvert</c> is only ever given a <see cref="Type"/>, so no caller options exist yet to
-	/// consult at this point; see the remarks on <see cref="HasRules"/>.
-	/// </summary>
-	private static readonly JsonSerializerOptions StructuralProbeOptions = new() { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
-
-	/// <summary>
-	/// A second probe, identical to <see cref="StructuralProbeOptions"/> except that it includes
-	/// fields, used only by <see cref="HasDirectlyDecoratedMember"/>.
+	/// consult at this point; see the remarks on <see cref="HasRules"/>. It includes fields, used
+	/// by <see cref="HasDirectlyDecoratedMember"/> and <see cref="EnumerateReachableMemberTypes"/>.
 	/// </summary>
 	/// <remarks>
 	/// <see cref="JsonRequiredIfSiblingIsAttribute"/> declares <see cref="AttributeTargets.Field"/>,
@@ -55,9 +50,12 @@ internal static class RequirementRuleCompiler
 	/// positive either way, because System.Text.Json does not populate the field in that
 	/// configuration either.
 	/// <para>
-	/// This deliberately does not extend to <see cref="EnumerateReachableMemberTypes"/>: reachability
-	/// must agree with the member model <see cref="GraphValidator"/>'s walk uses, and the walk sees
-	/// exactly the members the caller's own options expose.
+	/// Reachability probes the same way, for the same reason. The walk runs under the caller's own
+	/// options, so with <c>IncludeFields = true</c> it descends into fields; a holder reached only
+	/// through fields must therefore be claimed, or each decorated child validates on its own and
+	/// loses its path and every violation after the first. With <c>IncludeFields = false</c> the
+	/// holder is claimed for nothing: System.Text.Json does not populate the fields and the walk
+	/// does not see them, so the only cost is buffering.
 	/// </para>
 	/// </remarks>
 	private static readonly JsonSerializerOptions FieldAwareProbeOptions =
@@ -79,9 +77,9 @@ internal static class RequirementRuleCompiler
 	/// <see cref="JsonConverterFactory"/>'s <c>CanConvert</c> receives
 	/// only a <see cref="Type"/>, never the caller's <see cref="JsonSerializerOptions"/>, so this
 	/// reachability check cannot honour caller-specific settings such as <c>IncludeFields</c> or a
-	/// custom naming policy. It uses <see cref="StructuralProbeOptions"/> -- a fixed,
-	/// reflection-based, default-configured instance -- as the best available approximation of
-	/// "what would System.Text.Json actually walk into". This is an inherent limitation of the
+	/// custom naming policy. It uses <see cref="FieldAwareProbeOptions"/> -- a fixed,
+	/// reflection-based, default-configured instance that includes fields -- as the best available
+	/// approximation of "what would System.Text.Json actually walk into". This is an inherent limitation of the
 	/// claiming API, not something any implementation strategy here could fully avoid.
 	/// </para>
 	/// </remarks>
@@ -535,7 +533,7 @@ internal static class RequirementRuleCompiler
 
 	/// <summary>
 	/// Enumerates the types reachable from a type's own members, asking System.Text.Json's own
-	/// contract model (via <see cref="StructuralProbeOptions"/>) which members it would actually
+	/// contract model (via <see cref="FieldAwareProbeOptions"/>) which members it would actually
 	/// serialize rather than re-deriving that from raw reflection. Collection and dictionary
 	/// members are unwrapped to their element or value type rather than yielding the collection
 	/// type itself.
@@ -550,7 +548,7 @@ internal static class RequirementRuleCompiler
 	/// </remarks>
 	private static IEnumerable<Type> EnumerateReachableMemberTypes(Type type)
 	{
-		JsonTypeInfo? typeInfo = TryGetTypeInfo(StructuralProbeOptions, type);
+		JsonTypeInfo? typeInfo = TryGetTypeInfo(FieldAwareProbeOptions, type);
 
 		if (typeInfo is null)
 		{

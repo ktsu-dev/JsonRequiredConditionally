@@ -291,6 +291,46 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void FieldHolderUnderIncludeFieldsReportsEveryViolationWithItsPath()
+	{
+		JsonSerializerOptions options = CreateOptions();
+		options.IncludeFields = true;
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TwoFieldHolder>(
+				"""{"A":{"Kind":"Advanced"},"B":{"Kind":"Advanced"}}""", options));
+
+		Assert.AreSequenceEqual(new List<string> { "A.Tuning", "B.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void FieldHolderUnderIncludeFieldsReportsTheSameAsPropertyHolder()
+	{
+		JsonSerializerOptions options = CreateOptions();
+		options.IncludeFields = true;
+		const string json = /*lang=json,strict*/ """{"A":{"Kind":"Advanced"},"B":{"Kind":"Advanced"}}""";
+
+		JsonRequiredConditionallyException fields = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TwoFieldHolder>(json, options));
+		JsonRequiredConditionallyException properties = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<TwoPropertyHolder>(json, options));
+
+		Assert.AreSequenceEqual(properties.MissingProperties.ToList(), [.. fields.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void FieldHolderWithoutIncludeFieldsLeavesItsFieldsAlone()
+	{
+		// System.Text.Json never populates the fields here, so there is nothing to validate either.
+		TwoFieldHolder? holder = JsonSerializer.Deserialize<TwoFieldHolder>(
+			"""{"A":{"Kind":"Advanced"},"B":{"Kind":"Advanced"}}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.IsNull(holder.A);
+		Assert.IsNull(holder.B);
+	}
+
+	[TestMethod]
 	public void GetOnlyPropertyIsNotValidated()
 	{
 		// A get-only property has no setter, so System.Text.Json never populates it either; it
