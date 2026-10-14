@@ -96,6 +96,28 @@ public sealed class HidingConfig : HidingBaseConfig
 	public string? Tuning { get; set; }
 }
 
+/// <summary>Root of a hierarchy whose sibling is hidden one level down, not on the leaf.</summary>
+public class IntermediateHidingRootConfig
+{
+	public int Kind { get; set; }
+}
+
+/// <summary>Hides the root's sibling with `new` and a different type.</summary>
+public class IntermediateHidingMiddleConfig : IntermediateHidingRootConfig
+{
+	public new Kind Kind { get; set; }
+}
+
+/// <summary>
+/// Names the sibling hidden on <see cref="IntermediateHidingMiddleConfig"/>, so the ambiguous
+/// match has to be resolved below the leaf, which declares no <c>Kind</c> of its own.
+/// </summary>
+public sealed class IntermediateHidingConfig : IntermediateHidingMiddleConfig
+{
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>Holds a decorated child, to prove nested validation runs.</summary>
 public sealed class OuterConfig
 {

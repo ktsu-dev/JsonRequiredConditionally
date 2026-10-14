@@ -99,6 +99,30 @@ public class RequirementRuleCompilerTests
 		Assert.IsFalse(rules[0].IsRequiredFor(new HidingConfig { Kind = Kind.Basic }));
 	}
 
+	[TestMethod]
+	public void SiblingHiddenOnAnIntermediateClassResolvesToTheHidingMember()
+	{
+		RequirementRule[] rules = RequirementRuleCompiler.Compile(typeof(IntermediateHidingConfig), new JsonSerializerOptions());
+
+		Assert.IsTrue(rules[0].IsRequiredFor(new IntermediateHidingConfig { Kind = Kind.Advanced }));
+		Assert.IsFalse(rules[0].IsRequiredFor(new IntermediateHidingConfig { Kind = Kind.Basic }));
+	}
+
+	[TestMethod]
+	public void SiblingHiddenOnAnIntermediateClassIsEnforcedEndToEnd()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<IntermediateHidingConfig>("""{"Kind":"Advanced"}""", ConverterTests.CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties]);
+
+		IntermediateHidingConfig? config = JsonSerializer.Deserialize<IntermediateHidingConfig>(
+			"""{"Kind":"Advanced","Tuning":"t"}""", ConverterTests.CreateOptions());
+
+		Assert.AreEqual(Kind.Advanced, config?.Kind);
+		Assert.AreEqual("t", config?.Tuning);
+	}
+
 	private static JsonSerializerOptions PlainOptions() => new();
 
 	[TestMethod]
