@@ -2,6 +2,7 @@
 
 namespace ktsu.JsonRequiredConditionally;
 
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -68,13 +69,20 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 		// Path and position on System.Text.Json's own errors would be relative to it.
 		bool isNested = reader.CurrentDepth > 0;
 
+		// The buffered raw text keeps whatever the caller's reader tolerated, such as comments or
+		// trailing commas, so it is read back under that reader's settings rather than the ones
+		// plainOptions would build. MaxDepth stays plainOptions' own, as a string overload would use.
+		JsonReaderOptions readerOptions = reader.CurrentState.Options;
+		readerOptions.MaxDepth = plainOptions.MaxDepth;
+
 		using JsonDocument document = JsonDocument.ParseValue(ref reader);
 
 		T? value;
 
 		try
 		{
-			value = JsonSerializer.Deserialize<T>(document.RootElement.GetRawText(), plainOptions);
+			Utf8JsonReader bufferedReader = new(Encoding.UTF8.GetBytes(document.RootElement.GetRawText()), readerOptions);
+			value = JsonSerializer.Deserialize<T>(ref bufferedReader, plainOptions);
 		}
 		catch (JsonException exception) when (isNested && exception is not JsonRequiredConditionallyException)
 		{
