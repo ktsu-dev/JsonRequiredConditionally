@@ -91,6 +91,41 @@ public class ContainmentTests
 		Assert.Contains("ReferenceHandler", exception.Message);
 	}
 
+	private static JsonSerializerOptions IgnoreCyclesOptions() => new()
+	{
+		ReferenceHandler = ReferenceHandler.IgnoreCycles,
+		Converters = { new JsonStringEnumConverter(), new JsonRequiredConditionallyConverterFactory() },
+	};
+
+	[TestMethod]
+	public void IgnoreCyclesDeserializesAValidPayload()
+	{
+		OuterConfig? outer = JsonSerializer.Deserialize<OuterConfig>(
+			"""{"Child":{"Kind":"Advanced","Tuning":"x"}}""", IgnoreCyclesOptions());
+
+		Assert.AreEqual("x", outer?.Child?.Tuning);
+	}
+
+	[TestMethod]
+	public void IgnoreCyclesReportsViolationsWithTheirPaths()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<OuterConfig>("""{"Child":{"Kind":"Advanced"}}""", IgnoreCyclesOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void IgnoreCyclesSerializesACyclicGraphThroughAClaimedType()
+	{
+		CyclicDecoratedConfig config = new() { Kind = Kind.Advanced, Tuning = "x" };
+		config.Next = config;
+
+		string json = JsonSerializer.Serialize(config, IgnoreCyclesOptions());
+
+		Assert.AreEqual(/*lang=json,strict*/ """{"Kind":"Advanced","Tuning":"x","Next":null}""", json);
+	}
+
 	[TestMethod]
 	public void ReferenceHandlerThrowsOnSerializationToo()
 	{

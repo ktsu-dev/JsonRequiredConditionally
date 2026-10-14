@@ -4,6 +4,7 @@ namespace ktsu.JsonRequiredConditionally;
 
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 /// <summary>
@@ -81,7 +82,8 @@ internal static class SerializerFeatureGuard
 	/// <exception cref="NotSupportedException">The options or the type configure an unsupported feature.</exception>
 	/// <remarks>
 	/// <see cref="JsonSerializerOptions.ReferenceHandler"/> is checked here, on both directions,
-	/// rather than on read alone. Writing is in fact correct on its own -- <c>Write</c> delegates
+	/// rather than on read alone, for every handler except <see cref="ReferenceHandler.IgnoreCycles"/>,
+	/// which writes no metadata and does nothing on read. Writing is in fact correct on its own -- <c>Write</c> delegates
 	/// through options that retain the handler -- but a document this library emitted with
 	/// <c>$id</c>/<c>$ref</c>/<c>$values</c> is one it would then reject or mis-validate on read.
 	/// Refusing to write it is what stops the library producing input it cannot itself consume.
@@ -100,10 +102,12 @@ internal static class SerializerFeatureGuard
 	/// </remarks>
 	internal static void EnsureCanClaim(Type typeToConvert, JsonSerializerOptions options)
 	{
-		if (options.ReferenceHandler is not null)
+		// IgnoreCycles writes a null where a cycle would close and has no effect on reading, so it
+		// emits and consumes no reference metadata and the walk sees an ordinary document.
+		if (options.ReferenceHandler is not null && !ReferenceEquals(options.ReferenceHandler, ReferenceHandler.IgnoreCycles))
 		{
 			throw new NotSupportedException(
-				$"{LibraryName} does not support JsonSerializerOptions.ReferenceHandler. The converter buffers each claimed subtree and re-materializes it, and the buffered JSON of a '$ref' node carries none of the referenced object's properties -- so every armed requirement on it is reported missing, while a '$values' array arrives as a JSON object the walk cannot descend into at all. Serialization is refused as well as deserialization, so this library cannot emit a document it would then reject on read. {Remedy}");
+				$"{LibraryName} does not support a JsonSerializerOptions.ReferenceHandler that reads or writes reference metadata, such as ReferenceHandler.Preserve; ReferenceHandler.IgnoreCycles is supported. The converter buffers each claimed subtree and re-materializes it, and the buffered JSON of a '$ref' node carries none of the referenced object's properties -- so every armed requirement on it is reported missing, while a '$values' array arrives as a JSON object the walk cannot descend into at all. Serialization is refused as well as deserialization, so this library cannot emit a document it would then reject on read. {Remedy}");
 		}
 
 		if (PreferredPropertyObjectCreationHandling is null)
