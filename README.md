@@ -183,7 +183,7 @@ A walk can produce two categories of violation, not one. `MissingProperties` cov
 [`[JsonRequiredAndNotEmpty]`](#jsonrequiredandnotempty) below.
 
 **Serialization is not validated.** `Write` is plain delegation. It can still throw, but only to refuse
-a configuration this library cannot support: `ReferenceHandler` and a type-level
+a configuration this library cannot support: `ReferenceHandler.Preserve` (or a custom `ReferenceHandler`) and a type-level
 `[JsonObjectCreationHandling]` are rejected on write as well as on read. See
 [Limitations](#limitations).
 
@@ -357,7 +357,9 @@ contract with no property model — in either direction. There is no working wri
 there, so the library throws first and says why, instead of leaving you with
 `InvalidOperationException: Invalid JsonTypeInfo operation for JsonTypeInfoKind 'None'`.
 
-**`ReferenceHandler` is not supported and throws `NotSupportedException`, on both read and write.** The
+**`ReferenceHandler.Preserve` is not supported and throws `NotSupportedException`, on both read and
+write; so does a custom `ReferenceHandler`. `ReferenceHandler.IgnoreCycles` is supported**: it writes
+`null` where a cycle would close and does nothing on read, so it carries no reference metadata. The
 buffered JSON of a `$ref` node carries none of the referenced object's properties, so every armed
 requirement on it would be reported missing, and a `$values` array arrives as a JSON object the walk
 cannot descend into. Writing on its own is in fact correct — `Write` delegates through options that

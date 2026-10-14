@@ -136,7 +136,7 @@ The throws are split by the path they can actually affect, in `SerializerFeature
 
 | Feature | Refused in | Read | Write |
 |---------|-----------|------|-------|
-| `ReferenceHandler` | `EnsureCanClaim` (factory) | throws | throws |
+| `ReferenceHandler` other than `IgnoreCycles` | `EnsureCanClaim` (factory) | throws | throws |
 | Type-level `[JsonObjectCreationHandling]` | `EnsureCanClaim` (factory) | throws | throws |
 | `JsonSerializerOptions.PreferredObjectCreationHandling` | `EnsureCanRead` (converter `Read`) | throws | works |
 | Property-level `[JsonObjectCreationHandling]` | `EnsureCanRead` (converter `Read`) | throws | works |
