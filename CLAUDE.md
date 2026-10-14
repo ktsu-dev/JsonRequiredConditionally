@@ -101,7 +101,10 @@ alone, with no caller options in hand. `HasDirectlyDecoratedMember` therefore pr
 `IncludeFields = true` so a decorated plain field still claims its type; rule compilation then runs
 against the caller's real options, so with `IncludeFields = false` no rule is produced and nothing is
 enforced — the type is merely buffered for nothing. Reachability (`EnumerateReachableMemberTypes`)
-keeps the fields-off probe, because it must agree with what the walk will actually descend into.
+uses the same fields-on probe, because the walk runs under the caller's options and descends into
+fields when they are included: a holder reached only through fields must be claimed, or its decorated
+children validate one by one and lose their paths. With `IncludeFields = false` that holder, too, is
+only buffered for nothing.
 
 **Factory-free re-entry**: the converter must deserialize through a `JsonSerializerOptions` that does
 not carry `JsonRequiredConditionallyConverterFactory` itself, or every claimed type would recurse into

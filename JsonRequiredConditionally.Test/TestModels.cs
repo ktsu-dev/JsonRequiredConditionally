@@ -1051,6 +1051,27 @@ public sealed class PrivateSiblingFieldAdvancedDerived : PrivateSiblingFieldBase
 	}
 }
 
+/// <summary>
+/// Holds two decorated children in public fields and nothing decorated of its own, so it is only
+/// claimed when reachability looks through fields.
+/// </summary>
+public sealed class TwoFieldHolder
+{
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture exercises reachability through public fields under IncludeFields = true, which requires actual fields.")]
+	public SimpleConfig? A;
+
+	[SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "Test fixture exercises reachability through public fields under IncludeFields = true, which requires actual fields.")]
+	public SimpleConfig? B;
+}
+
+/// <summary>The property-shaped twin of <see cref="TwoFieldHolder"/>.</summary>
+public sealed class TwoPropertyHolder
+{
+	public SimpleConfig? A { get; set; }
+
+	public SimpleConfig? B { get; set; }
+}
+
 /// <summary>A decorated type that can point back at itself, for cycle handling on write.</summary>
 public sealed class CyclicDecoratedConfig
 {
