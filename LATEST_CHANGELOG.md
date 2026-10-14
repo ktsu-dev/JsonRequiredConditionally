@@ -1,8 +1,7 @@
-## v1.2.27 (patch)
+## v1.2.28-pre.1 (prerelease)
 
-Changes since v1.2.26:
+Changes since v1.2.27:
 
-- Merge main into fix/field-holder-reachability (Claude)
-- Claim a holder that reaches a decorated type only through fields [patch] (matt-edmondson)
-- Read a buffered value back under the caller's reader settings [patch] (matt-edmondson)
+- Bump Polyfill from 11.4.4 to 11.4.5 (dependabot[bot])
+- Bump the system group with 1 update (dependabot[bot])
 
