@@ -1,6 +1,7 @@
-## v1.2.26-pre.1 (prerelease)
+## v1.2.26 (patch)
 
 Changes since v1.2.25:
 
-- Bump Polyfill from 11.4.3 to 11.4.4 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Allow ReferenceHandler.IgnoreCycles [patch] (matt-edmondson)
+- Cover a sibling hidden with new on an intermediate base class [patch] (matt-edmondson)
 

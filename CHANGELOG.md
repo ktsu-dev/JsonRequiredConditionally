@@ -1,36 +1,43 @@
+## v1.2.26 (patch)
+
+Changes since v1.2.25:
+
+- Allow ReferenceHandler.IgnoreCycles [patch] (matt-edmondson)
+- Cover a sibling hidden with new on an intermediate base class [patch] (matt-edmondson)
+
 ## v1.2.26-pre.1 (prerelease)
 
 Changes since v1.2.25:
 
-- Bump Polyfill from 11.4.3 to 11.4.4 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.4.3 to 11.4.4 (dependabot[bot])
 
 ## v1.2.25 (patch)
 
 Changes since v1.2.24:
 
-- Merge main into fix/reject-opaque-siblings ([@matt-edmondson](https://github.com/matt-edmondson))
-- Reject object, JsonElement and JsonNode siblings at rule compilation [patch] ([@Claude](https://github.com/Claude))
+- Merge main into fix/reject-opaque-siblings (matt-edmondson)
+- Reject object, JsonElement and JsonNode siblings at rule compilation [patch] (Claude)
 
 ## v1.2.24 (patch)
 
 Changes since v1.2.23:
 
-- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling ([@Claude](https://github.com/Claude))
-- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling ([@Claude](https://github.com/Claude))
-- Resolve a base class's private sibling when deserializing a subclass [patch] ([@Claude](https://github.com/Claude))
+- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling (Claude)
+- Merge remote-tracking branch 'origin/main' into fix/inherited-private-sibling (Claude)
+- Resolve a base class's private sibling when deserializing a subclass [patch] (Claude)
 
 ## v1.2.23 (patch)
 
 Changes since v1.2.22:
 
-- Merge remote-tracking branch 'origin/main' into fix/constructor-from-runtime-type ([@Claude](https://github.com/Claude))
-- Pick the binding constructor from the type being deserialized [patch] ([@Claude](https://github.com/Claude))
+- Merge remote-tracking branch 'origin/main' into fix/constructor-from-runtime-type (Claude)
+- Pick the binding constructor from the type being deserialized [patch] (Claude)
 
 ## v1.2.22 (patch)
 
 Changes since v1.2.21:
 
-- Stop walking into members behind a property-level converter [patch] ([@Claude](https://github.com/Claude))
+- Stop walking into members behind a property-level converter [patch] (Claude)
 
 ## v1.2.21 (patch)
 
@@ -49,113 +56,113 @@ Changes since v1.2.19:
 
 Changes since v1.2.19:
 
-- Bump Polyfill from 11.4.1 to 11.4.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.4.1 to 11.4.2 (dependabot[bot])
 
 ## v1.2.19 (patch)
 
 Changes since v1.2.18:
 
-- Keep the path prefix under IEnumerable, IDictionary and IReadOnlyDictionary members [patch] ([@Claude](https://github.com/Claude))
+- Keep the path prefix under IEnumerable, IDictionary and IReadOnlyDictionary members [patch] (Claude)
 
 ## v1.2.18 (patch)
 
 Changes since v1.2.17:
 
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Move CI onto the shared ci-shared.yml pipeline (Claude)
 
 ## v1.2.17 (patch)
 
 Changes since v1.2.16:
 
-- Reject a top-level null for a non-nullable decorated struct [patch] ([@Claude](https://github.com/Claude))
+- Reject a top-level null for a non-nullable decorated struct [patch] (Claude)
 
 ## v1.2.16 (patch)
 
 Changes since v1.2.15:
 
-- Pair non-string dictionary keys by parsing the JSON name, not re-formatting the key [patch] ([@Claude](https://github.com/Claude))
-- Unwrap Nullable<T> in reachability so a T? of a decorated struct keeps its path [patch] ([@Claude](https://github.com/Claude))
+- Pair non-string dictionary keys by parsing the JSON name, not re-formatting the key [patch] (Claude)
+- Unwrap Nullable<T> in reachability so a T? of a decorated struct keeps its path [patch] (Claude)
 
 ## v1.2.15 (patch)
 
 Changes since v1.2.14:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.2.14 (patch)
 
 Changes since v1.2.13:
 
-- test: restore the net10.0/net9.0/net8.0 runtime matrix [patch] ([@Claude](https://github.com/Claude))
+- test: restore the net10.0/net9.0/net8.0 runtime matrix [patch] (Claude)
 
 ## v1.2.13 (patch)
 
 Changes since v1.2.12:
 
-- Correct the matrix blocker after ktsu.Sdk 2.31.1 [patch] ([@Claude](https://github.com/Claude))
-- Merge main into claude/restore-test-matrix-guard ([@Claude](https://github.com/Claude))
-- Make a missing test-matrix leg fail the build [patch] ([@Claude](https://github.com/Claude))
+- Correct the matrix blocker after ktsu.Sdk 2.31.1 [patch] (Claude)
+- Merge main into claude/restore-test-matrix-guard (Claude)
+- Make a missing test-matrix leg fail the build [patch] (Claude)
 
 ## v1.2.12 (patch)
 
 Changes since v1.2.11:
 
-- fix: reject an attribute constant that only rounds onto the sibling value [patch] ([@Claude](https://github.com/Claude))
-- fix: stop mispairing array elements with reordering collections [patch] ([@Claude](https://github.com/Claude))
+- fix: reject an attribute constant that only rounds onto the sibling value [patch] (Claude)
+- fix: stop mispairing array elements with reordering collections [patch] (Claude)
 
 ## v1.2.11 (patch)
 
 Changes since v1.2.10:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.2.10 (patch)
 
 Changes since v1.2.9:
 
-- Bump Polyfill from 11.3.0 to 11.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.3.0 to 11.4.0 (dependabot[bot])
 
 ## v1.2.9 (patch)
 
 Changes since v1.2.8:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.2.8 (patch)
 
 Changes since v1.2.7:
 
-- Bump MSTest.Sdk from 4.4.0 to 4.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.4.0 to 4.4.1 (dependabot[bot])
 
 ## v1.2.7 (patch)
 
 Changes since v1.2.6:
 
-- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
+- Gate Dependabot auto-merge on CI actually being green (Claude)
 
 ## v1.2.6 (patch)
 
 Changes since v1.2.5:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.2.5 (patch)
 
 Changes since v1.2.4:
 
-- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- ci: adopt the consolidated .NET workflow [patch] (Claude)
 
 ## v1.2.4 (patch)
 
 Changes since v1.2.3:
 
-- Bump Polyfill from 11.2.0 to 11.3.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.2.0 to 11.3.0 (dependabot[bot])
 
 ## v1.2.3 (patch)
 
 Changes since v1.2.2:
 
-- Bump the system group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the system group with 1 update (dependabot[bot])
 
 ## v1.2.2 (patch)
 
@@ -165,122 +172,122 @@ No significant changes detected since v1.2.1.
 
 Changes since v1.2.0:
 
-- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- ci: make the SonarQube quality gate opt in [patch] (matt-edmondson)
+- ci: adopt the unified dotnet workflow [patch] (matt-edmondson)
 
 ## v1.2.0 (minor)
 
 Changes since v1.1.0:
 
-- docs: drop em-dash from the qualified presence rule [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: address final review findings for JsonRequiredAndNotEmpty [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: fix review findings in JsonRequiredAndNotEmpty docs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: document JsonRequiredAndNotEmpty [minor] ([@matt-edmondson](https://github.com/matt-edmondson))
-- test: cover nesting, naming, self-sufficiency and dedup for JsonRequiredAndNotEmpty ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: enforce JsonRequiredAndNotEmpty during the graph walk ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add EmptyProperties to JsonRequiredConditionallyException ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: claim types decorated with JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: compile NonEmptyRule from JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add JsonRequiredAndNotEmptyAttribute ([@matt-edmondson](https://github.com/matt-edmondson))
-- feat: add EmptinessInspector for payload-element emptiness ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- Restore the missing package icon and suppress cross-TFM APICompat noise ([@matt-edmondson](https://github.com/matt-edmondson))
-- Stop Update SDKs failing when there is nothing to update ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Update ktsu.Sdk to 2.21.1 ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update copyright years and adjust output directory in configuration files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add .mailmap file for author name normalization ([@matt-edmondson](https://github.com/matt-edmondson))
+- docs: drop em-dash from the qualified presence rule [patch] (matt-edmondson)
+- fix: address final review findings for JsonRequiredAndNotEmpty [patch] (matt-edmondson)
+- docs: fix review findings in JsonRequiredAndNotEmpty docs [patch] (matt-edmondson)
+- docs: document JsonRequiredAndNotEmpty [minor] (matt-edmondson)
+- test: cover nesting, naming, self-sufficiency and dedup for JsonRequiredAndNotEmpty (matt-edmondson)
+- feat: enforce JsonRequiredAndNotEmpty during the graph walk (matt-edmondson)
+- feat: add EmptyProperties to JsonRequiredConditionallyException (matt-edmondson)
+- feat: claim types decorated with JsonRequiredAndNotEmptyAttribute (matt-edmondson)
+- feat: compile NonEmptyRule from JsonRequiredAndNotEmptyAttribute (matt-edmondson)
+- feat: add JsonRequiredAndNotEmptyAttribute (matt-edmondson)
+- feat: add EmptinessInspector for payload-element emptiness (matt-edmondson)
+- chore: store icon.png in LFS as .gitattributes declares (matt-edmondson)
+- docs: scope build badge to the default branch (matt-edmondson)
+- Restore the missing package icon and suppress cross-TFM APICompat noise (matt-edmondson)
+- Stop Update SDKs failing when there is nothing to update (matt-edmondson)
+- Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] (matt-edmondson)
+- [patch] Update ktsu.Sdk to 2.21.1 (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Remove obsolete step for installing runtimes in the .NET workflow (matt-edmondson)
+- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json (matt-edmondson)
+- Update copyright years and adjust output directory in configuration files (matt-edmondson)
+- Add .mailmap file for author name normalization (matt-edmondson)
 
 ## v1.1.9 (patch)
 
 Changes since v1.1.8:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.1.8 (patch)
 
 Changes since v1.1.7:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.1.7 (patch)
 
 Changes since v1.1.6:
 
-- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
+- chore: store icon.png in LFS as .gitattributes declares (matt-edmondson)
+- docs: scope build badge to the default branch (matt-edmondson)
 
 ## v1.1.6 (patch)
 
 Changes since v1.1.5:
 
-- Restore the missing package icon and suppress cross-TFM APICompat noise ([@matt-edmondson](https://github.com/matt-edmondson))
+- Restore the missing package icon and suppress cross-TFM APICompat noise (matt-edmondson)
 
 ## v1.1.5 (patch)
 
 Changes since v1.1.4:
 
-- Stop Update SDKs failing when there is nothing to update ([@matt-edmondson](https://github.com/matt-edmondson))
+- Stop Update SDKs failing when there is nothing to update (matt-edmondson)
 
 ## v1.1.4 (patch)
 
 Changes since v1.1.3:
 
-- Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- Fix ktsu.Sdk 2.27 analyzer errors: Polyfill PrivateAssets, netstandard framework package refs [patch] (matt-edmondson)
 
 ## v1.1.3 (patch)
 
 Changes since v1.1.2:
 
-- [patch] Update ktsu.Sdk to 2.21.1 ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Update ktsu.Sdk to 2.21.1 (matt-edmondson)
 
 ## v1.1.2 (patch)
 
 Changes since v1.1.1:
 
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Remove obsolete step for installing runtimes in the .NET workflow ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Remove obsolete step for installing runtimes in the .NET workflow (matt-edmondson)
+- Update MSTest.Sdk version and adjust ktsu.Sdk versions in global.json (matt-edmondson)
 
 ## v1.1.1 (patch)
 
 Changes since v1.1.0:
 
-- Update copyright years and adjust output directory in configuration files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add .mailmap file for author name normalization ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update copyright years and adjust output directory in configuration files (matt-edmondson)
+- Add .mailmap file for author name normalization (matt-edmondson)
 
 ## v1.1.0 (major)
 
-- [patch] Close the Populate containment gap and narrow the write-path throw ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Contain unmodellable serializer features and fix the graph-walk defects ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Fix README enum-converter gap and CLAUDE.md test filter examples ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add README and repo documentation ([@matt-edmondson](https://github.com/matt-edmondson))
-- Use ktsu.KtsuBuild.Tool for release verification in Task 9 ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Pin record, aggregation, and absent-sibling semantics ([@matt-edmondson](https://github.com/matt-edmondson))
-- Rewrite Task 9 README content for the graph-validation design ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Cover naming policy and case sensitivity ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Match constructor-bound properties against System.Text.Json's own selected constructor ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Recognize constructor-bound properties; unify rule compilation on JsonTypeInfo ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Replace reflection member model with JsonTypeInfo; fix eligibility factorial cost ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix JsonStringEnumConverter omission in Task 7/8 test code and correct TFM count ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update design spec for JsonTypeInfo member model and dropped net5.0/net6.0 targets ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Fix review findings: indexer crash, IDictionary keying, JsonIgnore/hiding, violation paths ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update design spec for whole-graph validation and MissingProperties paths ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Validate whole object graphs instead of relying on converter re-entrancy ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add converter, factory, and nested graph validation ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add JSON property presence scanning ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Resolve AmbiguousMatchException when a hidden sibling member is looked up ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add requirement rule compilation ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add JsonRequiredConditionallyException ([@matt-edmondson](https://github.com/matt-edmondson))
-- [fix] Use [SuppressMessage] attribute instead of pragma directives for CA1008 ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Add enum-normalizing value comparison ([@matt-edmondson](https://github.com/matt-edmondson))
-- [minor] Add JsonRequiredIfSiblingIs attribute and repo scaffolding ([@matt-edmondson](https://github.com/matt-edmondson))
-- Merge nesting task into the converter task in the plan ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add implementation plan for ktsu.JsonRequiredConditionally ([@matt-edmondson](https://github.com/matt-edmondson))
-- Pin sibling-resolution and absent-sibling semantics in design spec ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add design spec for ktsu.JsonRequiredConditionally ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Close the Populate containment gap and narrow the write-path throw (matt-edmondson)
+- [patch] Contain unmodellable serializer features and fix the graph-walk defects (matt-edmondson)
+- [patch] Fix README enum-converter gap and CLAUDE.md test filter examples (matt-edmondson)
+- [patch] Add README and repo documentation (matt-edmondson)
+- Use ktsu.KtsuBuild.Tool for release verification in Task 9 (matt-edmondson)
+- [patch] Pin record, aggregation, and absent-sibling semantics (matt-edmondson)
+- Rewrite Task 9 README content for the graph-validation design (matt-edmondson)
+- [patch] Cover naming policy and case sensitivity (matt-edmondson)
+- [patch] Match constructor-bound properties against System.Text.Json's own selected constructor (matt-edmondson)
+- [patch] Recognize constructor-bound properties; unify rule compilation on JsonTypeInfo (matt-edmondson)
+- [patch] Replace reflection member model with JsonTypeInfo; fix eligibility factorial cost (matt-edmondson)
+- Fix JsonStringEnumConverter omission in Task 7/8 test code and correct TFM count (matt-edmondson)
+- Update design spec for JsonTypeInfo member model and dropped net5.0/net6.0 targets (matt-edmondson)
+- [patch] Fix review findings: indexer crash, IDictionary keying, JsonIgnore/hiding, violation paths (matt-edmondson)
+- Update design spec for whole-graph validation and MissingProperties paths (matt-edmondson)
+- [patch] Validate whole object graphs instead of relying on converter re-entrancy (matt-edmondson)
+- [patch] Add converter, factory, and nested graph validation (matt-edmondson)
+- [patch] Add JSON property presence scanning (matt-edmondson)
+- [patch] Resolve AmbiguousMatchException when a hidden sibling member is looked up (matt-edmondson)
+- [patch] Add requirement rule compilation (matt-edmondson)
+- [patch] Add JsonRequiredConditionallyException (matt-edmondson)
+- [fix] Use [SuppressMessage] attribute instead of pragma directives for CA1008 (matt-edmondson)
+- [patch] Add enum-normalizing value comparison (matt-edmondson)
+- [minor] Add JsonRequiredIfSiblingIs attribute and repo scaffolding (matt-edmondson)
+- Merge nesting task into the converter task in the plan (matt-edmondson)
+- Add implementation plan for ktsu.JsonRequiredConditionally (matt-edmondson)
+- Pin sibling-resolution and absent-sibling semantics in design spec (matt-edmondson)
+- Add design spec for ktsu.JsonRequiredConditionally (matt-edmondson)
 
