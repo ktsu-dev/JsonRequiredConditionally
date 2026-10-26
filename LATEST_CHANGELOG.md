@@ -1,7 +1,6 @@
-## v1.2.28-pre.1 (prerelease)
+## v1.2.28-pre.2 (prerelease)
 
-Changes since v1.2.27:
+Changes since v1.2.28-pre.1:
 
-- Bump Polyfill from 11.4.4 to 11.4.5 (dependabot[bot])
 - Bump the system group with 1 update (dependabot[bot])
 
