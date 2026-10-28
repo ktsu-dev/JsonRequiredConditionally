@@ -129,4 +129,64 @@ public class NamingTests
 
 		Assert.AreSequenceEqual(new List<string> { "Name" }, [.. exception.EmptyProperties]);
 	}
+
+	[TestMethod]
+	public void CaseInsensitiveDuplicateIsValidatedAgainstTheLastOccurrenceWhenItIsInvalid()
+	{
+		JsonSerializerOptions options = CreateOptions(JsonNamingPolicy.CamelCase, caseInsensitive: true);
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<OuterConfig>(
+				/*lang=json*/ """{"child":{"kind":"Advanced","tuning":"x"},"Child":{"kind":"Advanced"}}""", options));
+
+		Assert.AreSequenceEqual(new List<string> { "child.tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveDuplicateIsValidatedAgainstTheLastOccurrenceWhenItIsValid()
+	{
+		JsonSerializerOptions options = CreateOptions(JsonNamingPolicy.CamelCase, caseInsensitive: true);
+
+		OuterConfig? config = JsonSerializer.Deserialize<OuterConfig>(
+			/*lang=json*/ """{"child":{"kind":"Advanced"},"Child":{"kind":"Advanced","tuning":"x"}}""", options);
+
+		Assert.IsNotNull(config);
+		Assert.IsNotNull(config.Child);
+		Assert.AreEqual("x", config.Child.Tuning);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveDuplicateWithNeitherSpellingExactIsValidatedAgainstTheLastOccurrence()
+	{
+		JsonSerializerOptions options = CreateOptions(caseInsensitive: true);
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<OuterConfig>(
+				/*lang=json*/ """{"child":{"kind":"Advanced","tuning":"x"},"CHILD":{"kind":"Advanced"}}""", options));
+
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveDuplicateNotEmptyMemberIsValidatedAgainstTheLastOccurrence()
+	{
+		JsonSerializerOptions options = CreateOptions(JsonNamingPolicy.CamelCase, caseInsensitive: true);
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NotEmptyStringConfig>(/*lang=json*/ """{"name":"x","Name":""}""", options));
+
+		Assert.AreSequenceEqual(new List<string> { "name" }, [.. exception.EmptyProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveOptionsStillPairDictionaryKeysExactly()
+	{
+		JsonSerializerOptions options = CreateOptions(caseInsensitive: true);
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CollectionConfig>(
+				/*lang=json,strict*/ """{"Lookup":{"a":{"Kind":"Advanced"},"A":{"Kind":"Advanced","Tuning":"x"}}}""", options));
+
+		Assert.AreSequenceEqual(new List<string> { "Lookup.a.Tuning" }, [.. exception.MissingProperties]);
+	}
 }
