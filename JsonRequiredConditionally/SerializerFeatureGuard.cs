@@ -102,6 +102,14 @@ internal static class SerializerFeatureGuard
 	/// </remarks>
 	internal static void EnsureCanClaim(Type typeToConvert, JsonSerializerOptions options)
 	{
+		// First, because everything below resolves the type's contract through the factory-free
+		// clone, and for an attribute-registered type that resolution comes straight back here.
+		if (IsRegisteredByTypeAttribute(typeToConvert))
+		{
+			throw new NotSupportedException(
+				$"{LibraryName} does not support registering JsonRequiredConditionallyConverterFactory through [JsonConverter] on '{typeToConvert.Name}'. The converter materializes each claimed subtree through a copy of the options with the factory removed from JsonSerializerOptions.Converters, but a type-level [JsonConverter] comes from the type's own metadata, so that copy resolves this converter again and every read and write would recurse until the process overflows its stack. Remove the attribute and add one JsonRequiredConditionallyConverterFactory to JsonSerializerOptions.Converters instead.");
+		}
+
 		// IgnoreCycles writes a null where a cycle would close and has no effect on reading, so it
 		// emits and consumes no reference metadata and the walk sees an ordinary document.
 		if (options.ReferenceHandler is not null && !ReferenceEquals(options.ReferenceHandler, ReferenceHandler.IgnoreCycles))
@@ -186,6 +194,20 @@ internal static class SerializerFeatureGuard
 	internal static bool PopulatesInPlace(JsonTypeInfo declaringTypeInfo, JsonPropertyInfo property) =>
 		PrefersPopulate(ObjectCreationHandling, property) ||
 		PrefersPopulate(PreferredPropertyObjectCreationHandling, declaringTypeInfo);
+
+	/// <summary>
+	/// Reports whether the type itself carries <c>[JsonConverter(typeof(JsonRequiredConditionallyConverterFactory))]</c>.
+	/// </summary>
+	/// <param name="typeToConvert">The type about to be claimed.</param>
+	/// <returns>True when the type-level attribute names this library's factory.</returns>
+	/// <remarks>
+	/// System.Text.Json reads a type-level <see cref="JsonConverterAttribute"/> without inheritance,
+	/// so only the type's own declaration is consulted. A property-level attribute is a different
+	/// route: it lives on the holder's member, the factory-free clone does not see it when it
+	/// materializes the member's type, and that route does not recurse.
+	/// </remarks>
+	internal static bool IsRegisteredByTypeAttribute(Type typeToConvert) =>
+		typeToConvert.GetCustomAttribute<JsonConverterAttribute>(inherit: false)?.ConverterType == typeof(JsonRequiredConditionallyConverterFactory);
 
 	private static string BuildPopulateMessage(string source) =>
 		$"{LibraryName} does not support JsonObjectCreationHandling.Populate, configured here by {source}. The converter re-materializes each claimed subtree into a fresh instance, so the object System.Text.Json intended to populate is discarded together with anything already in it. {Remedy}";

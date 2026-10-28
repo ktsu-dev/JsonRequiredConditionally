@@ -169,6 +169,48 @@ public class ContainmentTests
 	}
 
 	[TestMethod]
+	public void TypeLevelConverterAttributeThrowsNamingThisLibraryOnDeserialization()
+	{
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<AttributeRegisteredConfig>("""{"Kind":1,"Tuning":"t"}"""));
+
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("[JsonConverter]", exception.Message);
+	}
+
+	[TestMethod]
+	public void TypeLevelConverterAttributeThrowsNamingThisLibraryOnSerialization()
+	{
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Serialize(new AttributeRegisteredConfig { Kind = Kind.Basic }));
+
+		Assert.Contains("ktsu.JsonRequiredConditionally", exception.Message);
+		Assert.Contains("[JsonConverter]", exception.Message);
+	}
+
+	[TestMethod]
+	public void TypeLevelConverterAttributeThrowsEvenWhenTheFactoryIsAlsoInConverters()
+	{
+		JsonSerializerOptions options = CreateOptions();
+
+		Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<AttributeRegisteredConfig>("""{"Kind":"Advanced","Tuning":"t"}""", options));
+		Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Serialize(new AttributeRegisteredConfig { Kind = Kind.Basic }, options));
+	}
+
+	[TestMethod]
+	public void TypeLevelConverterAttributeReachedThroughAHolderThrows()
+	{
+		JsonSerializerOptions options = CreateOptions();
+
+		Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<AttributeRegisteredHolder>("""{"Child":{"Kind":"Advanced","Tuning":"t"}}""", options));
+		Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Serialize(new AttributeRegisteredHolder { Child = new() }, options));
+	}
+
+	[TestMethod]
 	public void PopulateObjectCreationHandlingThrowsForTypeClaimedOnlyByTheNotEmptyAttribute()
 	{
 		JsonSerializerOptions options = new() { Converters = { new JsonRequiredConditionallyConverterFactory() } };

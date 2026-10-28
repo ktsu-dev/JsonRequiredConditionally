@@ -372,8 +372,14 @@ than wrong.
 `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`; constructing it in a trimmed or AOT-published
 application produces a build warning.
 
-**Register the factory in `Converters`, not via `[JsonConverter]`.** Applying it as a type-level
-attribute is not supported.
+**Register the factory in `Converters`, not via `[JsonConverter]`.** A type carrying
+`[JsonConverter(typeof(JsonRequiredConditionallyConverterFactory))]` throws `NotSupportedException` on
+both read and write, whether or not the factory is also in `Converters`. The converter materializes
+each claimed subtree through a copy of the options with the factory removed from `Converters`, but a
+type-level attribute comes from the type's own metadata, so that copy would resolve the same converter
+again and recurse until the process overflowed its stack. A property-level `[JsonConverter]` naming the
+factory does not recurse and does validate, but its violations lose the holder's path prefix (`Tuning`
+rather than `Inner.Tuning`), so `Converters` is the supported route there too.
 
 ## API Reference
 

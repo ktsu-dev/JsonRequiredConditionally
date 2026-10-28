@@ -1,6 +1,6 @@
-## v1.2.28-pre.2 (prerelease)
+## v1.2.28-pre.3 (prerelease)
 
-Changes since v1.2.28-pre.1:
+Changes since v1.2.28-pre.2:
 
-- Bump the system group with 1 update (dependabot[bot])
+- Bump MSTest.Sdk from 4.5.1 to 4.5.2 (dependabot[bot])
 
