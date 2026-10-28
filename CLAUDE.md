@@ -193,6 +193,7 @@ with source files:
 - `JsonRequiredConditionally.Test/NestingTests.cs` — nested objects, arrays, and dictionaries, and path formatting
 - `JsonRequiredConditionally.Test/NotEmptyTests.cs` — `[JsonRequiredAndNotEmpty]` end-to-end, every payload shape from the semantics table against every member shape
 - `JsonRequiredConditionally.Test/PresenceScannerTests.cs` — `PresenceScanner` unit tests
+- `JsonRequiredConditionally.Test/ReflectionDisabledTests.cs` — behaviour with `IsReflectionEnabledByDefault` off and an explicit `DefaultJsonTypeInfoResolver`; relaunches the test assembly in a child process under a runtimeconfig with the switch off, since the switch is process-wide
 - `JsonRequiredConditionally.Test/RequirementRuleCompilerTests.cs` — `RequirementRuleCompiler` unit tests
 - `JsonRequiredConditionally.Test/RuntimeMatrixTests.cs` — asserts each leg runs on its own shared framework, and that every runnable library target is either covered by a leg or recorded as a deliberate gap
 - `JsonRequiredConditionally.Test/SemanticsTests.cs` — presence-vs-nullness, default-sibling, and other documented semantics
