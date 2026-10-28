@@ -1082,3 +1082,25 @@ public sealed class CyclicDecoratedConfig
 
 	public CyclicDecoratedConfig? Next { get; set; }
 }
+
+/// <summary>A dictionary key whose converter fails in a way that is not a rejected name.</summary>
+public readonly record struct FaultingKey(int Value);
+
+/// <summary>
+/// Reads and writes <see cref="FaultingKey"/> as a number, but throws an exception that is not a
+/// parse failure when asked for a property name, so the failure must not be taken as one.
+/// </summary>
+public sealed class FaultingKeyConverter : JsonConverter<FaultingKey>
+{
+	public override FaultingKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+		new(reader.GetInt32());
+
+	public override void Write(Utf8JsonWriter writer, FaultingKey value, JsonSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(writer);
+		writer.WriteNumberValue(value.Value);
+	}
+
+	public override FaultingKey ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+		throw new KeyNotFoundException("The key converter's own lookup failed.");
+}

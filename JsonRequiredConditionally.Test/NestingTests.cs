@@ -101,6 +101,33 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void PropertyNameTheKeyConverterRejectsPairsWithNothing()
+	{
+		// System.Text.Json would refuse this payload itself, so the walk is driven directly with a
+		// dictionary that holds only the parseable entry, as if the rejected one had never matched.
+		JsonSerializerOptions options = CreateOptions();
+		using JsonDocument document = JsonDocument.Parse("""{"Map":{"not-a-number":{"Kind":"Advanced"},"1":{"Kind":"Advanced"}}}""");
+		KeyedDictionaryConfig<int> config = new() { Map = { [1] = new SimpleConfig { Kind = Kind.Advanced } } };
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => GraphValidator.Validate(document.RootElement, config, PlainOptionsCache.Get(options), options));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.1.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void KeyConverterFailureOtherThanARejectedNamePropagates()
+	{
+		JsonSerializerOptions options = CreateOptions();
+		options.Converters.Add(new FaultingKeyConverter());
+		using JsonDocument document = JsonDocument.Parse("""{"Map":{"1":{"Kind":"Advanced"}}}""");
+		KeyedDictionaryConfig<FaultingKey> config = new() { Map = { [new FaultingKey(1)] = new SimpleConfig { Kind = Kind.Advanced } } };
+
+		Assert.ThrowsExactly<KeyNotFoundException>(
+			() => GraphValidator.Validate(document.RootElement, config, PlainOptionsCache.Get(options), options));
+	}
+
+	[TestMethod]
 	public void DateTimeKeyedDictionaryReportsOnlyTheFailingEntry()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
