@@ -1082,3 +1082,42 @@ public sealed class CyclicDecoratedConfig
 
 	public CyclicDecoratedConfig? Next { get; set; }
 }
+
+/// <summary>
+/// An immutable holder whose only constructor is a private <c>[JsonConstructor]</c>, which
+/// System.Text.Json 8.0 and later honours.
+/// </summary>
+public sealed class PrivateConstructorHolder
+{
+	[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "System.Text.Json calls this constructor through [JsonConstructor]; being private is what the fixture exists to reproduce.")]
+	[JsonConstructor]
+	private PrivateConstructorHolder(SimpleConfig child) => Child = child;
+
+	public SimpleConfig Child { get; }
+}
+
+/// <summary>The two-member, internal-constructor twin of <see cref="PrivateConstructorHolder"/>.</summary>
+public sealed class InternalConstructorHolder
+{
+	[JsonConstructor]
+	internal InternalConstructorHolder(SimpleConfig a, SimpleConfig b)
+	{
+		A = a;
+		B = b;
+	}
+
+	public SimpleConfig A { get; }
+
+	public SimpleConfig B { get; }
+}
+
+/// <summary>The value-type twin of <see cref="PrivateConstructorHolder"/>.</summary>
+[SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "Test fixture is never compared for equality; adding members would obscure the exact struct shape the fixture exists to reproduce.")]
+public readonly struct PrivateConstructorStructHolder
+{
+	[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "System.Text.Json calls this constructor through [JsonConstructor]; being private is what the fixture exists to reproduce.")]
+	[JsonConstructor]
+	private PrivateConstructorStructHolder(SimpleConfig child) => Child = child;
+
+	public SimpleConfig Child { get; }
+}
