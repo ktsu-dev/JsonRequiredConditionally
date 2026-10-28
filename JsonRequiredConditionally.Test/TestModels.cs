@@ -1121,3 +1121,35 @@ public readonly struct PrivateConstructorStructHolder
 
 	public SimpleConfig Child { get; }
 }
+
+/// <summary>A probe System.Text.Json 8.0+ can construct only by honouring a private <c>[JsonConstructor]</c>.</summary>
+public sealed class HonouredConstructorProbe
+{
+	[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "System.Text.Json calls this constructor through [JsonConstructor]; being private is what the fixture exists to reproduce.")]
+	[JsonConstructor]
+	private HonouredConstructorProbe(int value) => Value = value;
+
+	public int Value { get; }
+}
+
+/// <summary>A probe with no constructor System.Text.Json may use, so it is refused outright.</summary>
+public sealed class UnconstructibleProbe
+{
+	[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "The fixture needs a constructor System.Text.Json may not use; being private and unannotated is the point.")]
+	private UnconstructibleProbe(int value) => Value = value;
+
+	public int Value { get; }
+}
+
+/// <summary>A probe whose two <c>[JsonConstructor]</c> candidates make the choice ambiguous.</summary>
+public sealed class AmbiguousConstructorProbe
+{
+	[JsonConstructor]
+	public AmbiguousConstructorProbe() { }
+
+	[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "System.Text.Json sees this constructor through [JsonConstructor]; a second annotated constructor is what the fixture exists to reproduce.")]
+	[JsonConstructor]
+	private AmbiguousConstructorProbe(int value) => Value = value;
+
+	public int Value { get; }
+}

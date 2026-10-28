@@ -887,15 +887,21 @@ internal static class RequirementRuleCompiler
 	/// constructor and refuses the type. Kept in its own class so the probe runs on first use rather
 	/// than as part of this type's initialization.
 	/// </remarks>
-	private static class NonPublicJsonConstructorSupport
+	internal static class NonPublicJsonConstructorSupport
 	{
-		internal static readonly bool IsHonoured = Probe();
+		internal static readonly bool IsHonoured = CanConstruct(typeof(NonPublicConstructorProbe));
 
-		private static bool Probe()
+		/// <summary>
+		/// Reports whether System.Text.Json can construct <paramref name="probeType"/> from a
+		/// one-property payload, <c>{"Value":1}</c>.
+		/// </summary>
+		/// <param name="probeType">A type whose only route to construction is the one being asked about.</param>
+		/// <returns>True when deserialization produced an instance; false when System.Text.Json refused the type.</returns>
+		internal static bool CanConstruct(Type probeType)
 		{
 			try
 			{
-				return JsonSerializer.Deserialize<NonPublicConstructorProbe>("""{"Value":1}""", FieldAwareProbeOptions)?.Value == 1;
+				return JsonSerializer.Deserialize("""{"Value":1}""", probeType, FieldAwareProbeOptions) is not null;
 			}
 			catch (NotSupportedException)
 			{

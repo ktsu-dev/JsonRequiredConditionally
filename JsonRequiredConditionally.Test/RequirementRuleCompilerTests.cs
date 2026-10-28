@@ -179,4 +179,20 @@ public class RequirementRuleCompilerTests
 
 		Assert.AreSame(first, second);
 	}
+
+	[TestMethod]
+	public void NonPublicJsonConstructorIsHonouredOnEveryTestedLeg() =>
+		Assert.IsTrue(RequirementRuleCompiler.NonPublicJsonConstructorSupport.IsHonoured);
+
+	[TestMethod]
+	public void NonPublicJsonConstructorProbeConstructsThroughAPrivateJsonConstructor() =>
+		Assert.IsTrue(RequirementRuleCompiler.NonPublicJsonConstructorSupport.CanConstruct(typeof(HonouredConstructorProbe)));
+
+	[TestMethod]
+	public void NonPublicJsonConstructorProbeAnswersFalseForATypeWithNoUsableConstructor() =>
+		Assert.IsFalse(RequirementRuleCompiler.NonPublicJsonConstructorSupport.CanConstruct(typeof(UnconstructibleProbe)));
+
+	[TestMethod]
+	public void NonPublicJsonConstructorProbeAnswersFalseForAnAmbiguousJsonConstructor() =>
+		Assert.IsFalse(RequirementRuleCompiler.NonPublicJsonConstructorSupport.CanConstruct(typeof(AmbiguousConstructorProbe)));
 }
