@@ -1,6 +1,8 @@
-## v1.2.28-pre.3 (prerelease)
+## v1.2.28 (patch)
 
-Changes since v1.2.28-pre.2:
+Changes since v1.2.27:
 
-- Bump MSTest.Sdk from 4.5.1 to 4.5.2 (dependabot[bot])
+- Refuse a type-level [JsonConverter] registration instead of overflowing the stack [patch] (Claude)
+- Assert config and its child separately in the last-occurrence test (Claude)
+- Validate the occurrence System.Text.Json binds for a case-insensitive duplicate [patch] (Claude)
 
