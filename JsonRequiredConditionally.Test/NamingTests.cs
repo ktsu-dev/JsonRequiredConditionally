@@ -150,7 +150,8 @@ public class NamingTests
 		OuterConfig? config = JsonSerializer.Deserialize<OuterConfig>(
 			/*lang=json*/ """{"child":{"kind":"Advanced"},"Child":{"kind":"Advanced","tuning":"x"}}""", options);
 
-		Assert.IsNotNull(config?.Child);
+		Assert.IsNotNull(config);
+		Assert.IsNotNull(config.Child);
 		Assert.AreEqual("x", config.Child.Tuning);
 	}
 
