@@ -38,7 +38,10 @@ public sealed class JsonRequiredConditionallyConverterFactory : JsonConverterFac
 	{
 		Ensure.NotNull(typeToConvert);
 
-		return RequirementRuleCompiler.HasRules(typeToConvert);
+		// A type that registers this factory through its own [JsonConverter] is claimed without
+		// asking HasRules, which would resolve the type's contract, which resolves that attribute,
+		// which calls back here. Claiming it is what lets CreateConverter refuse it by name.
+		return SerializerFeatureGuard.IsRegisteredByTypeAttribute(typeToConvert) || RequirementRuleCompiler.HasRules(typeToConvert);
 	}
 
 	/// <inheritdoc/>

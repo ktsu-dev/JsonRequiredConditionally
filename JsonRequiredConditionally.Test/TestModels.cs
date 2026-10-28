@@ -1083,6 +1083,22 @@ public sealed class CyclicDecoratedConfig
 	public CyclicDecoratedConfig? Next { get; set; }
 }
 
+/// <summary>A decorated type that registers the factory through a type-level attribute, which is not supported.</summary>
+[JsonConverter(typeof(JsonRequiredConditionallyConverterFactory))]
+public sealed class AttributeRegisteredConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>Holds an <see cref="AttributeRegisteredConfig"/>, so the attribute is reached through a member.</summary>
+public sealed class AttributeRegisteredHolder
+{
+	public AttributeRegisteredConfig? Child { get; set; }
+}
+
 /// <summary>
 /// An immutable holder whose only constructor is a private <c>[JsonConstructor]</c>, which
 /// System.Text.Json 8.0 and later honours.

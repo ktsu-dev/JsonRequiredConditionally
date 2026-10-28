@@ -195,7 +195,6 @@ internal static class GraphValidator
 		string path,
 		ViolationCollector violations)
 	{
-		bool caseInsensitive = userOptions.PropertyNameCaseInsensitive;
 		Dictionary<object, (string Name, JsonElement Element)>? parsedKeys = null;
 
 		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
@@ -211,7 +210,9 @@ internal static class GraphValidator
 
 			if (entry.Key is string key)
 			{
-				if (TryGetProperty(element, key, comparer, caseInsensitive, out JsonElement child))
+				// System.Text.Json never matches dictionary keys case-insensitively, so "a" and "A" are
+				// each paired with their own entry whatever PropertyNameCaseInsensitive says.
+				if (element.TryGetProperty(key, out JsonElement child))
 				{
 					Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), violations);
 				}
@@ -361,28 +362,28 @@ internal static class GraphValidator
 		bool caseInsensitive,
 		out JsonElement value)
 	{
-		if (element.TryGetProperty(name, out value))
-		{
-			return true;
-		}
-
 		if (!caseInsensitive)
 		{
-			value = default;
-			return false;
+			return element.TryGetProperty(name, out value);
 		}
+
+		// System.Text.Json binds the last occurrence of a repeated property name, and under
+		// PropertyNameCaseInsensitive every spelling of the name is the same property. The walk has to
+		// read that same occurrence, so it keeps the last case-insensitive match rather than taking an
+		// exact-case match or the first one, either of which can be an occurrence the binder discarded.
+		bool found = false;
+		value = default;
 
 		foreach (JsonProperty property in element.EnumerateObject())
 		{
 			if (comparer.Equals(property.Name, name))
 			{
 				value = property.Value;
-				return true;
+				found = true;
 			}
 		}
 
-		value = default;
-		return false;
+		return found;
 	}
 
 	private static string Combine(string prefix, string name) =>
