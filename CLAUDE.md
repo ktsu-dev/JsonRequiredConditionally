@@ -124,6 +124,11 @@ unwrapped *recursively* (`EnumerateElementTypes`), so `List<List<T>>`, `T[][]` a
 `Dictionary<string, List<T>>` reach `T` — unwrapping one level left the holder unclaimed and collapsed
 `Grid[0][0].Tuning` to a bare `Tuning`. `Nullable<T>` is unwrapped the same way, both for a member and for
 an element, so a `T?` or `List<T?>` of a decorated struct keeps its holder claimed and its paths intact.
+A list, array or dictionary is itself claimed when its elements reach a decorated member
+(`IsPairableCollection`/`CollectionReachesRules`), which only matters at the payload root: there it
+makes `Deserialize<List<T>>` report every failing element as `[i].Tuning` in one exception, and
+`GraphValidator.Validate` starts from `Descend` so a root collection is walked. Sets, stacks and bare
+`IEnumerable` stay unclaimed, because the walk cannot pair them positionally.
 
 **Containment, not best effort**: the converter materializes through factory-free options, so the walk
 is the *sole* validator inside its subtree. Any serializer feature that changes what the graph means

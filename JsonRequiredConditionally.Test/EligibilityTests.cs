@@ -231,14 +231,13 @@ public class EligibilityTests
 	}
 
 	[TestMethod]
-	public void BareCollectionsAreStillNotClaimed()
+	public void BareCollectionsOfNotEmptyTypesAreClaimed()
 	{
-		// IsExcludedFromEligibility rejects anything assignable to IEnumerable, so a bare collection
-		// is never claimed at its own top however decorated its element type is. The holder that owns
-		// the collection is what gets claimed, which is what roots the reported path at the outermost
-		// container. The new attribute must not change this.
-		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(List<NotEmptyStringConfig>)));
-		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig[])));
+		// A list or array is claimed at its own top when its element type is, so a collection at the
+		// root of the payload reports every failing element with its index. The new attribute claims
+		// its element type like the conditional one does, so it claims the collection too.
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(List<NotEmptyStringConfig>)));
+		Assert.IsTrue(RequirementRuleCompiler.HasRules(typeof(NotEmptyStringConfig[])));
 	}
 
 	[TestMethod]

@@ -318,6 +318,12 @@ A type is claimed if it *reaches* a decorated member, directly or through its me
 rather than merely carrying is what lets violations be reported with paths rooted at the outermost
 container.
 
+That includes a list, array or dictionary at the root of the payload. `Deserialize<List<Config>>`
+reports every failing element in one exception, as `[0].Tuning` and `[2].Tuning`, and
+`Deserialize<Dictionary<string, Config>>` reports `a.Tuning` and `b.Tuning`. Sets, stacks, queues and
+other sequences whose order is not their payload order are not claimed at the root, so their elements
+are still validated, but one at a time: the first failing element throws, with no index.
+
 ## Limitations
 
 **Types behind a custom converter are not validated.** System.Text.Json exposes no property model for

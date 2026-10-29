@@ -31,36 +31,79 @@ public class ErrorLocationTests
 		Assert.IsInstanceOfType<JsonException>(registered.InnerException);
 	}
 
+	/// <summary>
+	/// Asserts that, with the factory registered, the error is the one System.Text.Json raises
+	/// without it: same path and same line. A list or dictionary at the root is claimed itself, so
+	/// its elements are read in one pass with no nested converter to re-root the path.
+	/// </summary>
+	private static void AssertSamePathAsUnregistered<T>(string json)
+	{
+		JsonException unregistered = Throws<T>(json, new());
+		JsonException registered = Throws<T>(json, new() { Converters = { new JsonRequiredConditionallyConverterFactory() } });
+
+		Assert.IsNotInstanceOfType<JsonRequiredConditionallyException>(registered);
+		Assert.AreEqual(unregistered.Path, registered.Path);
+		Assert.AreEqual(unregistered.LineNumber, registered.LineNumber);
+	}
+
 	[TestMethod]
-	public void TypeErrorInListElementKeepsItsIndexAndLine() =>
-		AssertSameLocationAsUnregistered<List<ErrorLocationSibling>>(/*lang=json,strict*/ """
+	public void TypeErrorInRootListElementKeepsItsFullPathAndLine() =>
+		AssertSamePathAsUnregistered<List<ErrorLocationSibling>>(/*lang=json,strict*/ """
 			[
 			 {"Mode":2},
 			 {"Mode":"oops"}
 			]
-			""", expectedPath: "$[1]");
+			""");
 
 	[TestMethod]
-	public void TypeErrorInArrayElementKeepsItsIndexAndLine() =>
-		AssertSameLocationAsUnregistered<ErrorLocationSibling[]>(/*lang=json,strict*/ """
+	public void TypeErrorInRootArrayElementKeepsItsFullPathAndLine() =>
+		AssertSamePathAsUnregistered<ErrorLocationSibling[]>(/*lang=json,strict*/ """
 			[
 			 {"Mode":2},
 			 {"Mode":"oops"}
 			]
-			""", expectedPath: "$[1]");
+			""");
 
 	[TestMethod]
-	public void TypeErrorInDictionaryValueKeepsItsKeyAndLine() =>
-		AssertSameLocationAsUnregistered<Dictionary<string, ErrorLocationOuter>>(/*lang=json,strict*/ """
+	public void TypeErrorInRootDictionaryValueKeepsItsFullPathAndLine() =>
+		AssertSamePathAsUnregistered<Dictionary<string, ErrorLocationOuter>>(/*lang=json,strict*/ """
 			{"a":{"x":{"Mode":2}},
 			 "b":{"x":{"Mode":"oops"}}}
-			""", expectedPath: "$.b");
+			""");
+
+	[TestMethod]
+	public void TypeErrorInSetElementKeepsItsIndexAndLine() =>
+		AssertSameLocationAsUnregistered<HashSet<ErrorLocationSibling>>(/*lang=json,strict*/ """
+			[
+			 {"Mode":2},
+			 {"Mode":"oops"}
+			]
+			""", expectedPath: "$[1]");
 
 	[TestMethod]
 	public void MaxDepthInsideNestedDecoratedTypeNamesItsElement() =>
-		AssertSameLocationAsUnregistered<List<ErrorLocationOuter>>(/*lang=json,strict*/ """
+		AssertSameLocationAsUnregistered<HashSet<ErrorLocationOuter>>(/*lang=json,strict*/ """
 			[{"x":{"Mode":1,"Tuning":"t"}}]
 			""", expectedPath: "$[0]", maxDepth: 2);
+
+	[TestMethod]
+	public void MaxDepthInsideRootListKeepsItsLine()
+	{
+		// A claimed root buffers its whole value through the caller's reader, so a too-deep element
+		// is reported at the root, as it is for a claimed root object. The line is unchanged.
+		const string json = /*lang=json,strict*/ """
+			[
+			 {"x":{"Mode":1,"Tuning":"t"}}
+			]
+			""";
+
+		JsonException unregistered = Throws<List<ErrorLocationOuter>>(json, new() { MaxDepth = 2 });
+		JsonException registered = Throws<List<ErrorLocationOuter>>(json, new() { MaxDepth = 2, Converters = { new JsonRequiredConditionallyConverterFactory() } });
+
+		Assert.IsNotInstanceOfType<JsonRequiredConditionallyException>(registered);
+		Assert.AreEqual("$", registered.Path);
+		Assert.AreEqual(unregistered.LineNumber, registered.LineNumber);
+	}
 
 	[TestMethod]
 	public void TypeErrorInDecoratedRootKeepsItsPath()

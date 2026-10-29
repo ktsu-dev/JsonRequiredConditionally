@@ -44,7 +44,9 @@ internal static class GraphValidator
 
 		ViolationCollector violations = new();
 
-		Walk(element, instance, plainOptions, userOptions, comparer, string.Empty, violations);
+		// Descend rather than Walk: a claimed root can be a list or dictionary, whose elements are
+		// reported as [0].Tuning or a.Tuning. Walk handles only an object.
+		Descend(element, instance, plainOptions, userOptions, comparer, string.Empty, violations);
 
 		if (violations.Any)
 		{

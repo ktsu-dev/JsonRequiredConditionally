@@ -63,7 +63,8 @@ internal static class RequirementRuleCompiler
 
 	/// <summary>
 	/// Determines whether a type carries at least one decorated member, or transitively reaches a
-	/// type that does through its own members' object graph, and is itself shaped like an object.
+	/// type that does through its own members' object graph, and is itself shaped like an object, or is
+	/// a list or dictionary whose elements or values reach one.
 	/// </summary>
 	/// <param name="type">The candidate type.</param>
 	/// <returns>True when the type should be routed through the converter.</returns>
@@ -88,6 +89,13 @@ internal static class RequirementRuleCompiler
 		if (EligibilityCache.TryGetValue(type, out bool cached))
 		{
 			return cached;
+		}
+
+		if (IsPairableCollection(type))
+		{
+			bool reaches = CollectionReachesRules(type, []);
+			EligibilityCache.TryAdd(type, reaches);
+			return reaches;
 		}
 
 		if (IsExcludedFromEligibility(type))
@@ -163,6 +171,57 @@ internal static class RequirementRuleCompiler
 		foreach (Type memberType in EnumerateReachableMemberTypes(type))
 		{
 			if (CollectReachable(memberType, visited, reachable))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Determines whether a type is a collection <see cref="GraphValidator"/> can pair with its JSON:
+	/// an <see cref="IList"/>, paired by position, or an <see cref="IDictionary"/>, paired by key.
+	/// </summary>
+	/// <param name="type">The candidate type.</param>
+	/// <returns>True for a list, array or dictionary type.</returns>
+	/// <remarks>
+	/// Other sequences -- sets, stacks, queues, bare <see cref="IEnumerable"/> -- are left out for the
+	/// reasons given on <c>GraphValidator.DescendList</c>: claiming one would materialize its elements
+	/// factory-free and then not walk them, so they would go unvalidated instead of being validated
+	/// one by one.
+	/// </remarks>
+	private static bool IsPairableCollection(Type type) =>
+		type != typeof(string) && (typeof(IList).IsAssignableFrom(type) || typeof(IDictionary).IsAssignableFrom(type));
+
+	/// <summary>
+	/// Determines whether a list or dictionary's element or value type reaches a decorated member,
+	/// through any number of nested lists and dictionaries.
+	/// </summary>
+	/// <param name="type">A type for which <see cref="IsPairableCollection"/> is true.</param>
+	/// <param name="visited">Collection types already inspected, so a collection that holds itself ends the search.</param>
+	/// <returns>True when the collection should be claimed at its own top.</returns>
+	/// <remarks>
+	/// Claiming a collection only matters when it is the root of the payload. Below a claimed holder
+	/// the subtree is materialized through factory-free options and walked by the holder's own
+	/// converter, so nothing there is claimed again. At the root, nothing above the elements is
+	/// claimed unless the collection is: System.Text.Json's own collection converter then validates
+	/// each element on its own, which reports only the first failing element and with no index or key.
+	/// </remarks>
+	private static bool CollectionReachesRules(Type type, HashSet<Type> visited)
+	{
+		if (!visited.Add(type))
+		{
+			return false;
+		}
+
+		foreach (Type immediateElement in EnumerateImmediateElementTypes(type))
+		{
+			Type element = UnwrapNullable(immediateElement);
+
+			if (IsPairableCollection(element)
+				? CollectionReachesRules(element, visited)
+				: HasRules(element))
 			{
 				return true;
 			}
