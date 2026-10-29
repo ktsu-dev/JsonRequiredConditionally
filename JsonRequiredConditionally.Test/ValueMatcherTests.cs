@@ -7,6 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 [TestClass]
 public class ValueMatcherTests
 {
+	private static readonly int[] Codes = [1, 2];
+	private static readonly string[] Names = ["a"];
+
 	public enum Kind
 	{
 		Basic = 0,
@@ -175,6 +178,10 @@ public class ValueMatcherTests
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(string), 1));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(object), "anything"));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(object), 3));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int[]), Codes));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(IEnumerable<int>), Codes));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(IReadOnlyList<int>), Codes));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(string[]), Names));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.JsonElement), "anything"));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.JsonElement?), "anything"));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(System.Text.Json.Nodes.JsonNode), "anything"));
