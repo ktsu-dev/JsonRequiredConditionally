@@ -71,9 +71,9 @@ internal sealed class JsonRequiredConditionallyConverter<T> : JsonConverter<T>
 
 		// The buffered raw text keeps whatever the caller's reader tolerated, such as comments or
 		// trailing commas, so it is read back under that reader's settings rather than the ones
-		// plainOptions would build. MaxDepth stays plainOptions' own, as a string overload would use.
+		// plainOptions would build. That includes MaxDepth: a caller's ref reader may allow deeper
+		// payloads than the options do, and ParseValue has already enforced its limit.
 		JsonReaderOptions readerOptions = reader.CurrentState.Options;
-		readerOptions.MaxDepth = plainOptions.MaxDepth;
 
 		using JsonDocument document = JsonDocument.ParseValue(ref reader);
 

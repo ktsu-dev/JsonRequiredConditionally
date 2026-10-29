@@ -28,6 +28,17 @@ public sealed class SimpleConfig
 	public string? Tuning { get; set; }
 }
 
+/// <summary>A decorated type carrying an arbitrarily deep JSON value.</summary>
+public sealed class DeepConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public JsonElement Blob { get; set; }
+}
+
 /// <summary>Two values of the same sibling: OR.</summary>
 public sealed class OrConfig
 {
