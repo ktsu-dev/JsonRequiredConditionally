@@ -118,6 +118,22 @@ public sealed class IntermediateHidingConfig : IntermediateHidingMiddleConfig
 	public string? Tuning { get; set; }
 }
 
+/// <summary>A dictionary whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveDictionary : Dictionary<string, SimpleConfig>
+{
+	public CaseInsensitiveDictionary()
+		: base(StringComparer.OrdinalIgnoreCase)
+	{
+	}
+}
+
+/// <summary>A holder of a dictionary whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public CaseInsensitiveDictionary Map { get; set; } = [];
+}
+
 /// <summary>Holds a decorated child, to prove nested validation runs.</summary>
 public sealed class OuterConfig
 {

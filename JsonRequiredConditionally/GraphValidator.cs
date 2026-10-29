@@ -196,6 +196,8 @@ internal static class GraphValidator
 		ViolationCollector violations)
 	{
 		Dictionary<object, (string Name, JsonElement Element)>? parsedKeys = null;
+		Dictionary<string, JsonElement>? comparerKeys = null;
+		bool comparerResolved = false;
 
 		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
 		// indexer returns null for a key of the wrong CLR type (e.g. int) instead of matching the
@@ -210,9 +212,19 @@ internal static class GraphValidator
 
 			if (entry.Key is string key)
 			{
-				// System.Text.Json never matches dictionary keys case-insensitively, so "a" and "A" are
-				// each paired with their own entry whatever PropertyNameCaseInsensitive says.
-				if (element.TryGetProperty(key, out JsonElement child))
+				// System.Text.Json never matches dictionary keys case-insensitively itself, so "a" and "A"
+				// are each paired with their own entry whatever PropertyNameCaseInsensitive says. The
+				// dictionary's own key comparer can still fold them into one entry, which keeps the first
+				// spelling but the value of the last occurrence, so that occurrence is the one to pair.
+				if (!comparerResolved)
+				{
+					comparerKeys = MapByKeyComparer(element, dictionary);
+					comparerResolved = true;
+				}
+
+				if (comparerKeys is null
+					? element.TryGetProperty(key, out JsonElement child)
+					: comparerKeys.TryGetValue(key, out child))
 				{
 					Descend(child, entry.Value, plainOptions, userOptions, comparer, Combine(path, key), violations);
 				}
@@ -232,6 +244,71 @@ internal static class GraphValidator
 			}
 		}
 	}
+
+	/// <summary>
+	/// Maps every property name of a JSON object to its value under a string-keyed dictionary's own key
+	/// comparer, when that comparer is not ordinal.
+	/// </summary>
+	/// <param name="element">The JSON object the dictionary was materialized from.</param>
+	/// <param name="dictionary">The materialized dictionary.</param>
+	/// <returns>
+	/// The names mapped through the dictionary's comparer, a later occurrence replacing an earlier
+	/// one as it does during deserialization; or <see langword="null"/> when the comparer is ordinal
+	/// or cannot be found, and each key matches only its own exact spelling.
+	/// </returns>
+	private static Dictionary<string, JsonElement>? MapByKeyComparer(JsonElement element, IDictionary dictionary)
+	{
+		if (GetKeyComparer(dictionary) is not { } keyComparer
+			|| keyComparer.Equals(EqualityComparer<string>.Default)
+			|| keyComparer.Equals(StringComparer.Ordinal))
+		{
+			return null;
+		}
+
+		Dictionary<string, JsonElement> keys = new(keyComparer);
+
+		foreach (JsonProperty property in element.EnumerateObject())
+		{
+			keys[property.Name] = property.Value;
+		}
+
+		return keys;
+	}
+
+	/// <summary>
+	/// Reads the key comparer of a string-keyed dictionary, from the <c>Comparer</c> property that
+	/// <see cref="Dictionary{TKey, TValue}"/> and <c>ConcurrentDictionary</c> expose, or the
+	/// <c>KeyComparer</c> property of <c>ImmutableDictionary</c>.
+	/// </summary>
+	/// <param name="dictionary">The materialized dictionary.</param>
+	/// <returns>The comparer, or <see langword="null"/> when the dictionary exposes none.</returns>
+	private static IEqualityComparer<string>? GetKeyComparer(IDictionary dictionary)
+	{
+		Type type = dictionary.GetType();
+
+		foreach (string name in KeyComparerPropertyNames)
+		{
+			PropertyInfo? property;
+
+			try
+			{
+				property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+			}
+			catch (AmbiguousMatchException)
+			{
+				continue;
+			}
+
+			if (property?.GetIndexParameters().Length == 0 && property.GetValue(dictionary) is IEqualityComparer<string> keyComparer)
+			{
+				return keyComparer;
+			}
+		}
+
+		return null;
+	}
+
+	private static readonly string[] KeyComparerPropertyNames = ["Comparer", "KeyComparer"];
 
 	/// <summary>
 	/// Parses every property name of a JSON object into a dictionary key, through the same converter
