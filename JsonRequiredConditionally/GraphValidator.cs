@@ -299,7 +299,7 @@ internal static class GraphValidator
 				continue;
 			}
 
-			if (property?.GetIndexParameters().Length == 0 && property.GetValue(dictionary) is IEqualityComparer<string> keyComparer)
+			if (property is not null && property.GetIndexParameters().Length == 0 && property.GetValue(dictionary) is IEqualityComparer<string> keyComparer)
 			{
 				return keyComparer;
 			}
