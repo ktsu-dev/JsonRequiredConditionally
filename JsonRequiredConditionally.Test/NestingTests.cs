@@ -53,6 +53,27 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void CaseInsensitiveDictionaryValidatesTheOccurrenceItKeeps()
+	{
+		// The comparer folds "a" and "A" into one entry that keeps the spelling "a" but the value of
+		// "A", which lacks Tuning.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CaseInsensitiveDictionaryHolder>(
+				"""{"Map":{"a":{"Kind":"Advanced","Tuning":"x"},"A":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.a.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveDictionaryAcceptsAValidKeptOccurrence()
+	{
+		CaseInsensitiveDictionaryHolder? holder = JsonSerializer.Deserialize<CaseInsensitiveDictionaryHolder>(
+			"""{"Map":{"a":{"Kind":"Advanced"},"A":{"Kind":"Advanced","Tuning":"x"}}}""", CreateOptions());
+
+		Assert.AreEqual("x", holder?.Map["a"].Tuning);
+	}
+
+	[TestMethod]
 	public void IntKeyedDictionaryValuesAreValidated()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
