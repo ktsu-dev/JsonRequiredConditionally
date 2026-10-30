@@ -25,7 +25,7 @@ public class RequirementRuleCompilerTests
 		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(int)));
 		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(string)));
 		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(Kind)));
-		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(List<SimpleConfig>)));
+		Assert.IsFalse(RequirementRuleCompiler.HasRules(typeof(List<int>)));
 	}
 
 	[TestMethod]
