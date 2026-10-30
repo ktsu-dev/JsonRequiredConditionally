@@ -171,6 +171,10 @@ internal static class GraphValidator
 				DescendDictionary(element, dictionary, plainOptions, userOptions, comparer, path, violations);
 				break;
 
+			case JsonValueKind.Object when RequirementRuleCompiler.IsKeyValuePair(value.GetType()):
+				DescendKeyValuePair(element, value, plainOptions, userOptions, comparer, path, violations);
+				break;
+
 			case JsonValueKind.Object:
 				Walk(element, value, plainOptions, userOptions, comparer, path, violations);
 				break;
@@ -247,6 +251,48 @@ internal static class GraphValidator
 			}
 		}
 	}
+
+	/// <summary>
+	/// Validates the key and value of a <see cref="KeyValuePair{TKey, TValue}"/> against the
+	/// <c>Key</c> and <c>Value</c> properties of the JSON object it was read from.
+	/// </summary>
+	/// <remarks>
+	/// System.Text.Json reads a pair through a built-in converter, so its contract has no properties and
+	/// <see cref="Walk"/> would find nothing to descend into. Below a claimed holder the pair is
+	/// materialized factory-free, which leaves this walk as the only validator of what it holds. The
+	/// JSON names are the ones that converter reads: <c>Key</c> and <c>Value</c> through the caller's
+	/// naming policy, matched case-insensitively when the caller asks for that.
+	/// </remarks>
+	private static void DescendKeyValuePair(
+		JsonElement element,
+		object pair,
+		JsonSerializerOptions plainOptions,
+		JsonSerializerOptions userOptions,
+		StringComparer comparer,
+		string path,
+		ViolationCollector violations)
+	{
+		Type type = pair.GetType();
+
+		foreach (string member in KeyValuePairMemberNames)
+		{
+			object? value = type.GetProperty(member)!.GetValue(pair);
+
+			if (value is null)
+			{
+				continue;
+			}
+
+			string name = userOptions.PropertyNamingPolicy?.ConvertName(member) ?? member;
+
+			if (TryGetProperty(element, name, comparer, userOptions.PropertyNameCaseInsensitive, out JsonElement child))
+			{
+				Descend(child, value, plainOptions, userOptions, comparer, Combine(path, name), violations);
+			}
+		}
+	}
+
+	private static readonly string[] KeyValuePairMemberNames = ["Key", "Value"];
 
 	/// <summary>
 	/// Maps every property name of a JSON object to its value under a string-keyed dictionary's own key
