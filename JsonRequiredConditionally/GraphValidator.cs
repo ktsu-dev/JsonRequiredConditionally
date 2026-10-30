@@ -4,6 +4,7 @@ namespace ktsu.JsonRequiredConditionally;
 
 using System.Collections;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -347,18 +348,30 @@ internal static class GraphValidator
 			{
 				key = readKey.Invoke(null, [converter, property.Name, options]);
 			}
-			catch (TargetInvocationException)
+			catch (TargetInvocationException exception) when (exception.InnerException is not null)
 			{
-				continue;
+				// ReadKey already treats the key converter's own failure as an unparseable name, so
+				// anything reaching here is a real fault. Swallowing it skipped the entry, and every
+				// violation inside it, without a word.
+				ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+				throw;
 			}
 
-			if (key is not null)
+			if (key is not UnparseableKey and not null)
 			{
 				keys[key] = (property.Name, property.Value);
 			}
 		}
 
 		return keys;
+	}
+
+	/// <summary>
+	/// Stands in for a property name the key converter could not parse, which pairs with nothing.
+	/// </summary>
+	private sealed class UnparseableKey
+	{
+		internal static readonly UnparseableKey Instance = new();
 	}
 
 	private static readonly MethodInfo ReadKeyMethod =
@@ -371,17 +384,37 @@ internal static class GraphValidator
 	/// <param name="converter">The converter System.Text.Json uses for <typeparamref name="TKey"/>.</param>
 	/// <param name="name">The property name as written in the JSON.</param>
 	/// <param name="options">The options the dictionary was materialized through.</param>
-	/// <returns>The parsed key.</returns>
+	/// <returns>The parsed key, or <see cref="UnparseableKey.Instance"/> when the converter rejects the name.</returns>
 	private static object? ReadKey<TKey>(JsonConverter converter, string name, JsonSerializerOptions options)
 	{
 		// ReadAsPropertyName needs a reader positioned on a property name, so wrap the name in a
-		// one-property object and advance to it.
-		byte[] json = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, int> { [name] = 0 });
-		Utf8JsonReader reader = new(json);
+		// one-property object and advance to it. The document is written directly rather than
+		// through JsonSerializer, whose options-less overloads use the global default resolver and
+		// throw when an application has turned off reflection by default.
+		using MemoryStream buffer = new();
+
+		using (Utf8JsonWriter writer = new(buffer))
+		{
+			writer.WriteStartObject();
+			writer.WritePropertyName(name);
+			writer.WriteNullValue();
+			writer.WriteEndObject();
+		}
+
+		Utf8JsonReader reader = new(buffer.ToArray());
 		reader.Read();
 		reader.Read();
 
-		return ((JsonConverter<TKey>)converter).ReadAsPropertyName(ref reader, typeof(TKey), options);
+		try
+		{
+			return ((JsonConverter<TKey>)converter).ReadAsPropertyName(ref reader, typeof(TKey), options);
+		}
+		catch (Exception exception) when (exception is JsonException or FormatException or OverflowException or ArgumentException or InvalidOperationException or NotSupportedException)
+		{
+			// System.Text.Json would have failed on a name its key converter rejects, so the entry
+			// cannot be in the dictionary and there is nothing to pair it with.
+			return UnparseableKey.Instance;
+		}
 	}
 
 	/// <summary>
