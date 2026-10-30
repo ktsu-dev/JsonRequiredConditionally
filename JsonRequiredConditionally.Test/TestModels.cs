@@ -1022,6 +1022,25 @@ public sealed class JsonNodeSiblingConfig
 	public int? Tuning { get; set; }
 }
 
+/// <summary>An array sibling compared against an array constant, which it never equals by reference.</summary>
+public sealed class ArraySiblingConfig
+{
+	[SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "The array-typed sibling is the case under test.")]
+	public int[]? Codes { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Codes), new[] { 1, 2 })]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>An <see cref="IEnumerable{T}"/> sibling compared against an array constant.</summary>
+public sealed class EnumerableSiblingConfig
+{
+	public IEnumerable<int>? Codes { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Codes), new[] { 1, 2 })]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>An <c>object</c> sibling compared against <c>null</c>, which a null sibling does equal.</summary>
 public sealed class ObjectNullSiblingConfig
 {

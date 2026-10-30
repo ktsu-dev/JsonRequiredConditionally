@@ -66,12 +66,23 @@ internal static class ValueMatcher
 	/// A sibling declared as <see cref="object"/>, <see cref="JsonElement"/> or <see cref="JsonNode"/>
 	/// is rejected for every non-null constant (see <see cref="IsOpaqueSiblingType"/>).
 	/// </para>
+	/// <para>
+	/// An array constant is rejected against every sibling type. <see cref="Matches"/> compares by
+	/// <see cref="object.Equals(object)"/>, which for an array is reference equality, so a
+	/// deserialized array -- or the <see cref="List{T}"/> behind an interface-typed sibling -- never
+	/// equals the attribute's array, even though the sibling's declared type can hold it.
+	/// </para>
 	/// </remarks>
 	internal static bool CanEverMatch(Type siblingType, object? expected)
 	{
 		if (expected is null)
 		{
 			return true;
+		}
+
+		if (expected is Array)
+		{
+			return false;
 		}
 
 		Type target = Nullable.GetUnderlyingType(siblingType) ?? siblingType;

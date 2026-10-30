@@ -152,6 +152,32 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void ArraySiblingAgainstArrayConstantThrowsOnFirstUse()
+	{
+		// A deserialized array never equals the attribute's array -- that is reference equality --
+		// so the rule used to compile and then accept {"Codes":[1,2]} with Tuning missing.
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<ArraySiblingConfig>(
+				"""{"Codes":[1,2]}""", CreateOptions()));
+
+		Assert.Contains(nameof(ArraySiblingConfig), exception.Message);
+		Assert.Contains(nameof(ArraySiblingConfig.Codes), exception.Message);
+		Assert.Contains("collection", exception.Message);
+	}
+
+	[TestMethod]
+	public void EnumerableSiblingAgainstArrayConstantThrowsOnFirstUse()
+	{
+		// The sibling materializes as a List<int>, which neither equals nor widens to int[].
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<EnumerableSiblingConfig>(
+				"""{"Codes":[1,2]}""", CreateOptions()));
+
+		Assert.Contains(nameof(EnumerableSiblingConfig), exception.Message);
+		Assert.Contains("collection", exception.Message);
+	}
+
+	[TestMethod]
 	public void ObjectSiblingAgainstNullStillFires()
 	{
 		// A null constant is an explicit choice and a null object sibling does equal it, so it stays admissible.
