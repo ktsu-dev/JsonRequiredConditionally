@@ -398,9 +398,11 @@ internal static class RequirementRuleCompiler
 			_ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
 		};
 
-		string reason = ValueMatcher.IsOpaqueSiblingType(Nullable.GetUnderlyingType(siblingType) ?? siblingType)
-			? " System.Text.Json materializes such a sibling as an uninterpreted JSON value, so declare it with a concrete type such as string, a number or an enum."
-			: string.Empty;
+		string reason = value is Array
+			? " Array and other collection constants are not supported: a sibling is compared by equality, which for a collection is reference equality, so declare the sibling with a scalar type such as string, a number or an enum."
+			: ValueMatcher.IsOpaqueSiblingType(Nullable.GetUnderlyingType(siblingType) ?? siblingType)
+				? " System.Text.Json materializes such a sibling as an uninterpreted JSON value, so declare it with a concrete type such as string, a number or an enum."
+				: string.Empty;
 
 		throw new InvalidOperationException(
 			$"[{nameof(JsonRequiredIfSiblingIsAttribute)}] on member '{memberName}' of type '{type.Name}' compares sibling '{siblingName}' against {described}, which can never equal a value of the sibling's type '{siblingType.Name}'.{reason}");

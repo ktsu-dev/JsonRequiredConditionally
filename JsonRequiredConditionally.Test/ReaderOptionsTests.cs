@@ -130,4 +130,18 @@ public class ReaderOptionsTests
 
 		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
 	}
+
+	[TestMethod]
+	public void ReaderMaxDepthAboveTheOptionsDepthIsHonoured()
+	{
+		// The options leave MaxDepth at its default of 64, but the caller's own reader allows 200.
+		string json = $$"""{"Kind":"Basic","Blob":{{new string('[', 80)}}{{new string(']', 80)}}}""";
+		JsonReaderOptions deepReader = new() { MaxDepth = 200 };
+
+		Utf8JsonReader unregisteredReader = new(Encoding.UTF8.GetBytes(json), deepReader);
+		DeepConfig? unregistered = JsonSerializer.Deserialize<DeepConfig>(ref unregisteredReader, UnregisteredOptions);
+		DeepConfig? registered = DeserializeThroughReader<DeepConfig>(json, deepReader);
+
+		Assert.AreEqual(unregistered?.Blob.GetRawText(), registered?.Blob.GetRawText());
+	}
 }

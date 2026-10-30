@@ -53,6 +53,27 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void CaseInsensitiveDictionaryValidatesTheOccurrenceItKeeps()
+	{
+		// The comparer folds "a" and "A" into one entry that keeps the spelling "a" but the value of
+		// "A", which lacks Tuning.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CaseInsensitiveDictionaryHolder>(
+				"""{"Map":{"a":{"Kind":"Advanced","Tuning":"x"},"A":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.a.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveDictionaryAcceptsAValidKeptOccurrence()
+	{
+		CaseInsensitiveDictionaryHolder? holder = JsonSerializer.Deserialize<CaseInsensitiveDictionaryHolder>(
+			"""{"Map":{"a":{"Kind":"Advanced"},"A":{"Kind":"Advanced","Tuning":"x"}}}""", CreateOptions());
+
+		Assert.AreEqual("x", holder?.Map["a"].Tuning);
+	}
+
+	[TestMethod]
 	public void IntKeyedDictionaryValuesAreValidated()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
@@ -98,6 +119,33 @@ public class NestingTests
 
 		Assert.IsNotNull(config);
 		Assert.HasCount(2, config.Map);
+	}
+
+	[TestMethod]
+	public void PropertyNameTheKeyConverterRejectsPairsWithNothing()
+	{
+		// System.Text.Json would refuse this payload itself, so the walk is driven directly with a
+		// dictionary that holds only the parseable entry, as if the rejected one had never matched.
+		JsonSerializerOptions options = CreateOptions();
+		using JsonDocument document = JsonDocument.Parse("""{"Map":{"not-a-number":{"Kind":"Advanced"},"1":{"Kind":"Advanced"}}}""");
+		KeyedDictionaryConfig<int> config = new() { Map = { [1] = new SimpleConfig { Kind = Kind.Advanced } } };
+
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => GraphValidator.Validate(document.RootElement, config, PlainOptionsCache.Get(options), options));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.1.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void KeyConverterFailureOtherThanARejectedNamePropagates()
+	{
+		JsonSerializerOptions options = CreateOptions();
+		options.Converters.Add(new FaultingKeyConverter());
+		using JsonDocument document = JsonDocument.Parse("""{"Map":{"1":{"Kind":"Advanced"}}}""");
+		KeyedDictionaryConfig<FaultingKey> config = new() { Map = { [new FaultingKey(1)] = new SimpleConfig { Kind = Kind.Advanced } } };
+
+		Assert.ThrowsExactly<KeyNotFoundException>(
+			() => GraphValidator.Validate(document.RootElement, config, PlainOptionsCache.Get(options), options));
 	}
 
 	[TestMethod]

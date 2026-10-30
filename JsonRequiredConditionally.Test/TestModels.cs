@@ -28,6 +28,17 @@ public sealed class SimpleConfig
 	public string? Tuning { get; set; }
 }
 
+/// <summary>A decorated type carrying an arbitrarily deep JSON value.</summary>
+public sealed class DeepConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
+	public string? Tuning { get; set; }
+
+	public JsonElement Blob { get; set; }
+}
+
 /// <summary>Two values of the same sibling: OR.</summary>
 public sealed class OrConfig
 {
@@ -116,6 +127,22 @@ public sealed class IntermediateHidingConfig : IntermediateHidingMiddleConfig
 {
 	[JsonRequiredIfSiblingIs(nameof(Kind), Kind.Advanced)]
 	public string? Tuning { get; set; }
+}
+
+/// <summary>A dictionary whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveDictionary : Dictionary<string, SimpleConfig>
+{
+	public CaseInsensitiveDictionary()
+		: base(StringComparer.OrdinalIgnoreCase)
+	{
+	}
+}
+
+/// <summary>A holder of a dictionary whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public CaseInsensitiveDictionary Map { get; set; } = [];
 }
 
 /// <summary>Holds a decorated child, to prove nested validation runs.</summary>
@@ -995,6 +1022,25 @@ public sealed class JsonNodeSiblingConfig
 	public int? Tuning { get; set; }
 }
 
+/// <summary>An array sibling compared against an array constant, which it never equals by reference.</summary>
+public sealed class ArraySiblingConfig
+{
+	[SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "The array-typed sibling is the case under test.")]
+	public int[]? Codes { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Codes), new[] { 1, 2 })]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>An <see cref="IEnumerable{T}"/> sibling compared against an array constant.</summary>
+public sealed class EnumerableSiblingConfig
+{
+	public IEnumerable<int>? Codes { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Codes), new[] { 1, 2 })]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>An <c>object</c> sibling compared against <c>null</c>, which a null sibling does equal.</summary>
 public sealed class ObjectNullSiblingConfig
 {
@@ -1097,6 +1143,28 @@ public sealed class AttributeRegisteredConfig
 public sealed class AttributeRegisteredHolder
 {
 	public AttributeRegisteredConfig? Child { get; set; }
+}
+
+/// <summary>A dictionary key whose converter fails in a way that is not a rejected name.</summary>
+public readonly record struct FaultingKey(int Value);
+
+/// <summary>
+/// Reads and writes <see cref="FaultingKey"/> as a number, but throws an exception that is not a
+/// parse failure when asked for a property name, so the failure must not be taken as one.
+/// </summary>
+public sealed class FaultingKeyConverter : JsonConverter<FaultingKey>
+{
+	public override FaultingKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+		new(reader.GetInt32());
+
+	public override void Write(Utf8JsonWriter writer, FaultingKey value, JsonSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(writer);
+		writer.WriteNumberValue(value.Value);
+	}
+
+	public override FaultingKey ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+		throw new KeyNotFoundException("The key converter's own lookup failed.");
 }
 
 /// <summary>
