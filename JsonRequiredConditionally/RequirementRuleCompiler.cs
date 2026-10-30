@@ -609,6 +609,22 @@ internal static class RequirementRuleCompiler
 	/// </remarks>
 	private static IEnumerable<Type> EnumerateReachableMemberTypes(Type type)
 	{
+		// System.Text.Json reads a KeyValuePair<,> through a built-in converter, so its contract has no
+		// properties, yet the walk descends into its Key and Value (see GraphValidator.DescendKeyValuePair).
+		// Without this, a holder reaching a decorated type only through a pair went unclaimed.
+		if (IsKeyValuePair(type))
+		{
+			foreach (Type argument in type.GetGenericArguments())
+			{
+				foreach (Type reachable in UnwrapMemberType(argument))
+				{
+					yield return reachable;
+				}
+			}
+
+			yield break;
+		}
+
 		JsonTypeInfo? typeInfo = TryGetTypeInfo(FieldAwareProbeOptions, type);
 
 		if (typeInfo is null)
@@ -631,24 +647,37 @@ internal static class RequirementRuleCompiler
 				continue;
 			}
 
-			// A `T?` member reaches `T`: `Nullable<T>`'s own contract has no properties, so without
-			// the unwrap a holder reaching a decorated struct only through `T?` went unclaimed and the
-			// struct was validated on its own, losing its path and every violation after the first.
-			Type memberType = UnwrapNullable(property.PropertyType);
-
-			if (memberType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(memberType))
+			foreach (Type reachable in UnwrapMemberType(property.PropertyType))
 			{
-				foreach (Type elementType in EnumerateElementTypes(memberType))
-				{
-					yield return elementType;
-				}
-			}
-			else
-			{
-				yield return memberType;
+				yield return reachable;
 			}
 		}
 	}
+
+	/// <summary>
+	/// Unwraps a member's declared type to the types the walk reaches through it.
+	/// </summary>
+	/// <param name="type">The member's declared type.</param>
+	/// <returns>The member type itself, or its element/value types when it is a collection.</returns>
+	private static IEnumerable<Type> UnwrapMemberType(Type type)
+	{
+		// A `T?` member reaches `T`: `Nullable<T>`'s own contract has no properties, so without
+		// the unwrap a holder reaching a decorated struct only through `T?` went unclaimed and the
+		// struct was validated on its own, losing its path and every violation after the first.
+		Type memberType = UnwrapNullable(type);
+
+		return memberType != typeof(string) && typeof(IEnumerable).IsAssignableFrom(memberType)
+			? EnumerateElementTypes(memberType)
+			: [memberType];
+	}
+
+	/// <summary>
+	/// Determines whether a type is a closed <see cref="KeyValuePair{TKey, TValue}"/>.
+	/// </summary>
+	/// <param name="type">The candidate type.</param>
+	/// <returns>True for any <c>KeyValuePair&lt;TKey, TValue&gt;</c>.</returns>
+	internal static bool IsKeyValuePair(Type type) =>
+		type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>);
 
 	/// <summary>
 	/// Unwraps a collection type all the way down to the element types it ultimately holds, so that
