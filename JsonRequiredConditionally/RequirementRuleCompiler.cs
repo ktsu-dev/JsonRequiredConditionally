@@ -882,19 +882,29 @@ internal static class RequirementRuleCompiler
 	/// <param name="type">The type to select a deserialization constructor for.</param>
 	/// <returns>The constructor System.Text.Json would select, or null when no constructor binds properties.</returns>
 	/// <remarks>
-	/// This is an approximation, not a faithful reproduction. It is known to diverge from
-	/// System.Text.Json for a non-public constructor carrying <c>[JsonConstructor]</c>, which
-	/// System.Text.Json honours and <see cref="Type.GetConstructors()"/> never surfaces here. It is
-	/// deliberately conservative in both known divergences: returning null costs enforcement on a
-	/// get-only property, whereas returning a constructor System.Text.Json would not have used costs
-	/// a false positive against a member the payload never touched.
+	/// This is an approximation, not a faithful reproduction. It is deliberately conservative where it
+	/// diverges: returning null costs enforcement on a get-only property, whereas returning a
+	/// constructor System.Text.Json would not have used costs a false positive against a member the
+	/// payload never touched.
+	/// <para>
+	/// A non-public constructor carrying <c>[JsonConstructor]</c> is considered only when the running
+	/// System.Text.Json honours one, which 8.0 and later do and net7.0's in-box copy does not. That is
+	/// the usual shape of an immutable model, and missing it left the holder unclaimed, so each
+	/// decorated child was validated on its own: violations lost their path prefix, and every one
+	/// after the first was never reported. The answer comes from <see cref="NonPublicJsonConstructorSupport"/>,
+	/// a one-time runtime probe, because this library uses no conditional compilation.
+	/// </para>
 	/// </remarks>
 	private static ConstructorInfo? SelectDeserializationConstructor(Type type)
 	{
 		ConstructorInfo[] publicConstructors = type.GetConstructors();
 
+		ConstructorInfo[] annotatableConstructors = NonPublicJsonConstructorSupport.IsHonoured
+			? type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			: publicConstructors;
+
 		ConstructorInfo[] jsonConstructors =
-			[.. publicConstructors.Where(constructor => constructor.IsDefined(typeof(JsonConstructorAttribute), inherit: true))];
+			[.. annotatableConstructors.Where(constructor => constructor.IsDefined(typeof(JsonConstructorAttribute), inherit: true))];
 
 		if (jsonConstructors.Length == 1)
 		{
@@ -926,5 +936,54 @@ internal static class RequirementRuleCompiler
 		ConstructorInfo[] parameterized = [.. publicConstructors.Where(constructor => constructor.GetParameters().Length > 0)];
 
 		return parameterized.Length == 1 ? parameterized[0] : null;
+	}
+
+	/// <summary>
+	/// Answers, once per process, whether the running System.Text.Json honours <c>[JsonConstructor]</c>
+	/// on a non-public constructor.
+	/// </summary>
+	/// <remarks>
+	/// Answered by deserializing <see cref="NonPublicConstructorProbe"/>, whose only constructor is a
+	/// private one carrying the attribute. A System.Text.Json that ignores it finds no usable
+	/// constructor and refuses the type. Kept in its own class so the probe runs on first use rather
+	/// than as part of this type's initialization.
+	/// </remarks>
+	internal static class NonPublicJsonConstructorSupport
+	{
+		internal static readonly bool IsHonoured = CanConstruct(typeof(NonPublicConstructorProbe));
+
+		/// <summary>
+		/// Reports whether System.Text.Json can construct <paramref name="probeType"/> from a
+		/// one-property payload, <c>{"Value":1}</c>.
+		/// </summary>
+		/// <param name="probeType">A type whose only route to construction is the one being asked about.</param>
+		/// <returns>True when deserialization produced an instance; false when System.Text.Json refused the type.</returns>
+		internal static bool CanConstruct(Type probeType)
+		{
+			try
+			{
+				return JsonSerializer.Deserialize("""{"Value":1}""", probeType, FieldAwareProbeOptions) is not null;
+			}
+			catch (NotSupportedException)
+			{
+				return false;
+			}
+			catch (InvalidOperationException)
+			{
+				return false;
+			}
+		}
+	}
+
+	/// <summary>
+	/// A type System.Text.Json can only construct by honouring a private <c>[JsonConstructor]</c>.
+	/// </summary>
+	private sealed class NonPublicConstructorProbe
+	{
+		[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "System.Text.Json calls this constructor through [JsonConstructor]; being private is the point of the probe.")]
+		[JsonConstructor]
+		private NonPublicConstructorProbe(int value) => Value = value;
+
+		public int Value { get; }
 	}
 }

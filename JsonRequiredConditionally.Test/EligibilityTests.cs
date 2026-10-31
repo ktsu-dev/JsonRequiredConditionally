@@ -265,4 +265,34 @@ public class EligibilityTests
 
 		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
 	}
+
+	[TestMethod]
+	public void HolderBuiltThroughAPrivateJsonConstructorKeepsItsPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<PrivateConstructorHolder>(
+				"""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void HolderBuiltThroughAnInternalJsonConstructorReportsEveryViolation()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<InternalConstructorHolder>(
+				"""{"A":{"Kind":"Advanced"},"B":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "A.Tuning", "B.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void StructBuiltThroughAPrivateJsonConstructorKeepsItsPathPrefix()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<PrivateConstructorStructHolder>(
+				"""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Child.Tuning" }, [.. exception.MissingProperties]);
+	}
 }
