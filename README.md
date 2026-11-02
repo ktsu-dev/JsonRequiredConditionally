@@ -159,6 +159,10 @@ System.Text.Json materializes such a member as an uninterpreted JSON value, whic
 attribute constant, so the rule would compile and then never fire. Declare the sibling with a concrete
 type (`string`, a number, or an enum) instead. A `null` value is still accepted.
 
+**A `null` value against a non-nullable value-type sibling is rejected** too. An `int`, an enum or a
+`Guid` is never null, so `[JsonRequiredIfSiblingIs(nameof(Count), null)]` on an `int Count` would never
+fire. Declare the sibling as `int?` to require the member when the sibling is absent or null.
+
 **Members System.Text.Json would not populate are not validated below.** A get-only property on a
 `struct` is one of these: System.Text.Json uses a value type's implicit parameterless constructor
 unless an explicit `[JsonConstructor]` says otherwise, so such a property keeps its default and the

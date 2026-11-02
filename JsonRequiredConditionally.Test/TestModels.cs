@@ -1041,6 +1041,42 @@ public sealed class EnumerableSiblingConfig
 	public string? Tuning { get; set; }
 }
 
+/// <summary>A non-nullable <c>int</c> sibling compared against <c>null</c>, which it can never hold.</summary>
+public sealed class IntNullSiblingConfig
+{
+	public int Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), null)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A non-nullable enum sibling compared against <c>null</c>, which it can never hold.</summary>
+public sealed class EnumNullSiblingConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), null)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A non-nullable <see cref="Guid"/> sibling compared against <c>null</c>, which it can never hold.</summary>
+public sealed class GuidNullSiblingConfig
+{
+	public Guid Id { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Id), null)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A nullable <c>int</c> sibling compared against <c>null</c>, which an absent or null sibling does equal.</summary>
+public sealed class NullableIntNullSiblingConfig
+{
+	public int? Count { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Count), null)]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>An <c>object</c> sibling compared against <c>null</c>, which a null sibling does equal.</summary>
 public sealed class ObjectNullSiblingConfig
 {

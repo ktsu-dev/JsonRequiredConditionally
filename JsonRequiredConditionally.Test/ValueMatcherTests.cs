@@ -166,7 +166,9 @@ public class ValueMatcherTests
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), 1));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind?), Kind.Advanced));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(object), null));
-		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Guid), null));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Guid?), null));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(int?), null));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(string), null));
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(string), "text"));
 	}
 
@@ -174,6 +176,9 @@ public class ValueMatcherTests
 	public void CanEverMatchRejectsGenuinelyUnconvertibleValues()
 	{
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Guid), 1));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Guid), null));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), null));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), null));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), "NoSuchMember"));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(string), 1));
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(object), "anything"));
