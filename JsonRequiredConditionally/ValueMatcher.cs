@@ -181,11 +181,16 @@ internal static class ValueMatcher
 	/// </remarks>
 	private static bool TryWiden(object value, Type targetType, out object? widened)
 	{
-		if (targetType == typeof(string))
+		Type valueType = value.GetType();
+
+		if (!IsNumeric(targetType) || !IsNumeric(valueType.IsEnum ? Enum.GetUnderlyingType(valueType) : valueType))
 		{
-			// A string sibling is compared ordinally against a string constant. Formatting a
-			// non-string constant into a string to make it match would be a silent coercion no
-			// author asked for, so it is treated as unconvertible instead.
+			// Only a number widens to another number. Formatting a number into a string sibling,
+			// parsing a string constant into a number or bool sibling, or reading 0 as false or 65
+			// as 'A' would each be a silent coercion no author asked for -- and Convert.ChangeType's
+			// version of it depends on formatting ("True" parses, "true" round-trips differently,
+			// "01" does not round-trip at all). Treating them as unconvertible lets CanEverMatch
+			// reject the pairing when the rule compiles.
 			widened = null;
 			return false;
 		}
@@ -240,6 +245,26 @@ internal static class ValueMatcher
 	}
 
 	/// <summary>
+	/// Determines whether a type is one of the numeric primitives <see cref="TryWiden"/> converts between.
+	/// </summary>
+	/// <param name="type">The type to test.</param>
+	/// <returns>True for the integral and floating-point primitives, <see cref="decimal"/>, <see cref="IntPtr"/> and <see cref="UIntPtr"/>.</returns>
+	private static bool IsNumeric(Type type) =>
+		type == typeof(sbyte)
+		|| type == typeof(byte)
+		|| type == typeof(short)
+		|| type == typeof(ushort)
+		|| type == typeof(int)
+		|| type == typeof(uint)
+		|| type == typeof(long)
+		|| type == typeof(ulong)
+		|| type == typeof(float)
+		|| type == typeof(double)
+		|| type == typeof(decimal)
+		|| type == typeof(IntPtr)
+		|| type == typeof(UIntPtr);
+
+	/// <summary>
 	/// Determines whether a conversion kept the value it started from.
 	/// </summary>
 	/// <param name="original">The value that was converted.</param>
@@ -251,8 +276,7 @@ internal static class ValueMatcher
 	/// sibling value it does not equal -- every <c>int</c> sibling holding 2 would satisfy a rule
 	/// written against 2.4. Requiring the original value back rejects that, and any other narrowing
 	/// that silently loses information, while leaving an exact widening admissible: 1 against a
-	/// <c>long</c> sibling, "5" against an <c>int</c> one, and 2.0 against an <c>int</c> one all
-	/// round-trip unchanged.
+	/// <c>long</c> sibling and 2.0 against an <c>int</c> one both round-trip unchanged.
 	/// </remarks>
 	private static bool PreservesValue(object original, object converted)
 	{

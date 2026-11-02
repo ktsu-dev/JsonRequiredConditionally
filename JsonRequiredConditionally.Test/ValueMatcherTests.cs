@@ -157,6 +157,41 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
+	public void DoesNotParseAStringToMatchANumericOrBoolSibling()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(1, "1"));
+		Assert.IsFalse(ValueMatcher.Matches(1.5, "1.5"));
+		Assert.IsFalse(ValueMatcher.Matches(true, "True"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), "1"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), "01"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(bool), "true"));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(bool), "True"));
+	}
+
+	[TestMethod]
+	public void DoesNotCoerceBetweenNumbersAndBoolOrChar()
+	{
+		Assert.IsFalse(ValueMatcher.Matches(true, 1));
+		Assert.IsFalse(ValueMatcher.Matches(false, 0));
+		Assert.IsFalse(ValueMatcher.Matches('A', 65));
+		Assert.IsFalse(ValueMatcher.Matches(65, 'A'));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(bool), 1));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(char), 65));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), true));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), true));
+	}
+
+	[TestMethod]
+	public void StillMatchesSameTypeBoolAndCharConstants()
+	{
+		Assert.IsTrue(ValueMatcher.Matches(true, true));
+		Assert.IsTrue(ValueMatcher.Matches('A', 'A'));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(bool), true));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(bool?), false));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(char), 'A'));
+	}
+
+	[TestMethod]
 	public void CanEverMatchAcceptsWidenableAndEnumParseableValues()
 	{
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(long), 1));
