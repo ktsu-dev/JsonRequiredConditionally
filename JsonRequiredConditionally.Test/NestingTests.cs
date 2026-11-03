@@ -74,6 +74,46 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void CaseInsensitiveSortedDictionaryValidatesTheOccurrenceItKeeps()
+	{
+		// An order-only comparer folds "a" and "A" just as an equality comparer does: the entry keeps
+		// the spelling "a" but the value of "A", which lacks Tuning.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CaseInsensitiveSortedDictionaryHolder>(
+				"""{"Map":{"a":{"Kind":"Advanced","Tuning":"x"},"A":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.a.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveSortedDictionaryAcceptsAValidKeptOccurrence()
+	{
+		CaseInsensitiveSortedDictionaryHolder? holder = JsonSerializer.Deserialize<CaseInsensitiveSortedDictionaryHolder>(
+			"""{"Map":{"a":{"Kind":"Advanced"},"A":{"Kind":"Advanced","Tuning":"x"}}}""", CreateOptions());
+
+		Assert.AreEqual("x", holder?.Map["a"].Tuning);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveSortedListValidatesTheOccurrenceItKeeps()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CaseInsensitiveSortedListHolder>(
+				"""{"Map":{"a":{"Kind":"Advanced","Tuning":"x"},"A":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Map.a.Tuning" }, [.. exception.MissingProperties]);
+	}
+
+	[TestMethod]
+	public void CaseInsensitiveSortedListAcceptsAValidKeptOccurrence()
+	{
+		CaseInsensitiveSortedListHolder? holder = JsonSerializer.Deserialize<CaseInsensitiveSortedListHolder>(
+			"""{"Map":{"a":{"Kind":"Advanced"},"A":{"Kind":"Advanced","Tuning":"x"}}}""", CreateOptions());
+
+		Assert.AreEqual("x", holder?.Map["a"].Tuning);
+	}
+
+	[TestMethod]
 	public void IntKeyedDictionaryValuesAreValidated()
 	{
 		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(

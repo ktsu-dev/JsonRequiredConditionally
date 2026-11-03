@@ -145,6 +145,48 @@ public sealed class CaseInsensitiveDictionaryHolder
 	public CaseInsensitiveDictionary Map { get; set; } = [];
 }
 
+/// <summary>
+/// An order-only comparer that ignores case. It is deliberately not a <see cref="StringComparer"/>,
+/// so it offers no <see cref="IEqualityComparer{T}"/> for a sorted collection to expose.
+/// </summary>
+public static class CaseInsensitiveOrder
+{
+	public static IComparer<string> Instance { get; } = Comparer<string>.Create(
+		(left, right) => string.Compare(left, right, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>A sorted dictionary whose own key comparer is an order-only comparer that ignores case.</summary>
+public sealed class CaseInsensitiveSortedDictionary : SortedDictionary<string, SimpleConfig>
+{
+	public CaseInsensitiveSortedDictionary()
+		: base(CaseInsensitiveOrder.Instance)
+	{
+	}
+}
+
+/// <summary>A holder of a sorted dictionary whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveSortedDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public CaseInsensitiveSortedDictionary Map { get; set; } = [];
+}
+
+/// <summary>A sorted list whose own key comparer is an order-only comparer that ignores case.</summary>
+public sealed class CaseInsensitiveSortedList : SortedList<string, SimpleConfig>
+{
+	public CaseInsensitiveSortedList()
+		: base(CaseInsensitiveOrder.Instance)
+	{
+	}
+}
+
+/// <summary>A holder of a sorted list whose own key comparer ignores case.</summary>
+public sealed class CaseInsensitiveSortedListHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public CaseInsensitiveSortedList Map { get; set; } = [];
+}
+
 /// <summary>Holds a decorated child, to prove nested validation runs.</summary>
 public sealed class OuterConfig
 {
