@@ -150,8 +150,10 @@ value, or by the enum member's own name written as a string:
 [JsonRequiredIfSiblingIs(nameof(Kind), "Advanced")]  // matches Kind == Kind.Advanced
 ```
 
-String siblings are still compared ordinally against string constants only; a number is never
-formatted into a string to make it match. **A pairing that could never match throws
+Only numbers widen to other numbers. Strings, bools and chars are never coerced in either direction:
+a string sibling is compared ordinally against string constants only, a number is never formatted
+into a string or parsed out of one to make it match, and `0`/`1` never match a `bool` sibling nor
+`65` a `char` one. **A pairing that could never match throws
 `InvalidOperationException`** at first use, for the same reason an unresolvable sibling name does.
 
 **A sibling declared as `object`, `JsonElement` or `JsonNode` is rejected** for any non-null value.
