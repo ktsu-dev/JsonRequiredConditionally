@@ -139,18 +139,22 @@ internal static class ValueMatcher
 	/// without round-tripping, so a rule against a float sibling was refused, although a payload
 	/// <c>0.1</c> deserializes to exactly <c>0.1f</c>. The author of either rule wrote the same
 	/// number, and <see cref="float"/> is the precision both sides share, so that is where they meet.
+	/// <para>
+	/// The comparison is <see cref="float.CompareTo(float)"/> rather than <c>==</c>, so that NaN matches
+	/// NaN as it does through <see cref="object.Equals(object)"/> for every other pairing.
+	/// </para>
 	/// </remarks>
 	private static bool TryMatchAsSingle(object actual, object expected, out bool matches)
 	{
 		if (actual is double actualDouble && expected is float expectedSingle)
 		{
-			matches = TryNarrowToSingle(actualDouble, out float narrowed) && narrowed.Equals(expectedSingle);
+			matches = TryNarrowToSingle(actualDouble, out float narrowed) && narrowed.CompareTo(expectedSingle) == 0;
 			return true;
 		}
 
 		if (actual is float actualSingle && expected is double expectedDouble)
 		{
-			matches = TryNarrowToSingle(expectedDouble, out float narrowed) && actualSingle.Equals(narrowed);
+			matches = TryNarrowToSingle(expectedDouble, out float narrowed) && actualSingle.CompareTo(narrowed) == 0;
 			return true;
 		}
 
