@@ -45,6 +45,11 @@ internal static class ValueMatcher
 			return expected is string expectedText && string.Equals(actualText, expectedText, StringComparison.Ordinal);
 		}
 
+		if (TryMatchAsSingle(actual, expected, out bool matchesAsSingle))
+		{
+			return matchesAsSingle;
+		}
+
 		return actualType == expectedType
 			? actual.Equals(expected)
 			: TryWiden(expected, actualType, out object? widened) && actual.Equals(widened);
@@ -106,7 +111,67 @@ internal static class ValueMatcher
 				|| TryWiden(expected, Enum.GetUnderlyingType(target), out _);
 		}
 
+		if (target == typeof(double) && expected is float)
+		{
+			return true;
+		}
+
+		if (target == typeof(float) && expected is double constant)
+		{
+			return TryNarrowToSingle(constant, out _);
+		}
+
 		return TryWiden(expected, target, out _);
+	}
+
+	/// <summary>
+	/// Compares a <see cref="float"/> against a <see cref="double"/> at <see cref="float"/> precision,
+	/// whichever of the two is the sibling and whichever the constant.
+	/// </summary>
+	/// <param name="actual">The sibling's runtime value.</param>
+	/// <param name="expected">The constant supplied to the attribute.</param>
+	/// <param name="matches">Whether the values are equal at <see cref="float"/> precision.</param>
+	/// <returns>True when the pairing is one <see cref="float"/> and one <see cref="double"/>.</returns>
+	/// <remarks>
+	/// Exact widening gets this pairing wrong in both directions (#111). <c>0.1f</c> widens to the
+	/// double <c>0.10000000149011612</c>, which no payload <c>0.1</c> deserializes to, so a rule
+	/// written against a double sibling compiled and never fired. <c>0.1</c> narrows to <c>0.1f</c>
+	/// without round-tripping, so a rule against a float sibling was refused, although a payload
+	/// <c>0.1</c> deserializes to exactly <c>0.1f</c>. The author of either rule wrote the same
+	/// number, and <see cref="float"/> is the precision both sides share, so that is where they meet.
+	/// <para>
+	/// The comparison is <see cref="float.CompareTo(float)"/> rather than <c>==</c>, so that NaN matches
+	/// NaN as it does through <see cref="object.Equals(object)"/> for every other pairing.
+	/// </para>
+	/// </remarks>
+	private static bool TryMatchAsSingle(object actual, object expected, out bool matches)
+	{
+		if (actual is double actualDouble && expected is float expectedSingle)
+		{
+			matches = TryNarrowToSingle(actualDouble, out float narrowed) && narrowed.CompareTo(expectedSingle) == 0;
+			return true;
+		}
+
+		if (actual is float actualSingle && expected is double expectedDouble)
+		{
+			matches = TryNarrowToSingle(expectedDouble, out float narrowed) && actualSingle.CompareTo(narrowed) == 0;
+			return true;
+		}
+
+		matches = false;
+		return false;
+	}
+
+	/// <summary>
+	/// Rounds a <see cref="double"/> to the nearest <see cref="float"/>, refusing one outside its range.
+	/// </summary>
+	/// <param name="value">The value to round.</param>
+	/// <param name="narrowed">The nearest <see cref="float"/>.</param>
+	/// <returns>False when a finite <paramref name="value"/> overflows to an infinity.</returns>
+	private static bool TryNarrowToSingle(double value, out float narrowed)
+	{
+		narrowed = (float)value;
+		return !float.IsInfinity(narrowed) || double.IsInfinity(value);
 	}
 
 	/// <summary>
