@@ -457,7 +457,9 @@ internal static class RequirementRuleCompiler
 			_ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
 		};
 
-		string reason = value is Array
+		string reason = value is null
+			? $" A non-nullable value type is never null, so declare the sibling as '{siblingType.Name}?' to match an absent or null value."
+			: value is Array
 			? " Array and other collection constants are not supported: a sibling is compared by equality, which for a collection is reference equality, so declare the sibling with a scalar type such as string, a number or an enum."
 			: ValueMatcher.IsOpaqueSiblingType(Nullable.GetUnderlyingType(siblingType) ?? siblingType)
 				? " System.Text.Json materializes such a sibling as an uninterpreted JSON value, so declare it with a concrete type such as string, a number or an enum."

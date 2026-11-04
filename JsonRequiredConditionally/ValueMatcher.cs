@@ -60,8 +60,10 @@ internal static class ValueMatcher
 	/// This mirrors <see cref="Matches"/> exactly one step removed: it answers the same question
 	/// against the sibling's *declared* type rather than one particular runtime value, so rule
 	/// compilation can fail loudly on a pairing that would otherwise be a rule that quietly never
-	/// fires. A null expected value is always admissible -- it is an explicit choice by the author,
-	/// and it matches a null sibling value.
+	/// fires. A null expected value is admissible for any sibling that can hold null -- a reference
+	/// type or a <see cref="Nullable{T}"/> -- and it matches a null sibling value. A non-nullable
+	/// value-type sibling (<c>int</c>, an enum, <see cref="Guid"/>, ...) is never null, so a null
+	/// constant against one is rejected.
 	/// <para>
 	/// A sibling declared as <see cref="object"/>, <see cref="JsonElement"/> or <see cref="JsonNode"/>
 	/// is rejected for every non-null constant (see <see cref="IsOpaqueSiblingType"/>).
@@ -77,7 +79,7 @@ internal static class ValueMatcher
 	{
 		if (expected is null)
 		{
-			return true;
+			return !siblingType.IsValueType || Nullable.GetUnderlyingType(siblingType) is not null;
 		}
 
 		if (expected is Array)

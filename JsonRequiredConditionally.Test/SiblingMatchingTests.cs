@@ -178,6 +178,52 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void IntSiblingAgainstNullThrowsOnFirstUse()
+	{
+		// An int is never null, so the rule used to compile and then accept {"Count":0} with Tuning missing.
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<IntNullSiblingConfig>(
+				"""{"Count":0}""", CreateOptions()));
+
+		Assert.Contains(nameof(IntNullSiblingConfig), exception.Message);
+		Assert.Contains(nameof(IntNullSiblingConfig.Count), exception.Message);
+		Assert.Contains("Int32?", exception.Message);
+	}
+
+	[TestMethod]
+	public void EnumSiblingAgainstNullThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<EnumNullSiblingConfig>("{}", CreateOptions()));
+
+		Assert.Contains(nameof(EnumNullSiblingConfig), exception.Message);
+		Assert.Contains("Kind?", exception.Message);
+	}
+
+	[TestMethod]
+	public void GuidSiblingAgainstNullThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<GuidNullSiblingConfig>("{}", CreateOptions()));
+
+		Assert.Contains(nameof(GuidNullSiblingConfig), exception.Message);
+		Assert.Contains("Guid?", exception.Message);
+	}
+
+	[TestMethod]
+	public void NullableIntSiblingAgainstNullStillFires()
+	{
+		// The suggested fix: declaring the sibling as int? makes an absent or null value match.
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<NullableIntNullSiblingConfig>("{}", CreateOptions()));
+
+		NullableIntNullSiblingConfig? config = JsonSerializer.Deserialize<NullableIntNullSiblingConfig>(
+			"""{"Count":3}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+	}
+
+	[TestMethod]
 	public void ObjectSiblingAgainstNullStillFires()
 	{
 		// A null constant is an explicit choice and a null object sibling does equal it, so it stays admissible.
