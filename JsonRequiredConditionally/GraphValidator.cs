@@ -168,7 +168,15 @@ internal static class GraphValidator
 		switch (element.ValueKind)
 		{
 			case JsonValueKind.Object when value is IDictionary dictionary:
-				DescendDictionary(element, dictionary, plainOptions, userOptions, comparer, path, violations);
+				DescendDictionary(element, dictionary, EnumerateEntries(dictionary), plainOptions, userOptions, comparer, path, violations);
+				break;
+
+			// A type implementing only IDictionary<K,V> or IReadOnlyDictionary<K,V> is still a
+			// dictionary to System.Text.Json, which reads it from a JSON object keyed by K. Walking
+			// it as a plain object would look for the wrapper's own properties and find none of the
+			// value type's rules, silently accepting every violation inside it.
+			case JsonValueKind.Object when TryGetGenericDictionaryEntryType(value.GetType(), out Type? entryType):
+				DescendDictionary(element, value, EnumerateEntries((IEnumerable)value, entryType!), plainOptions, userOptions, comparer, path, violations);
 				break;
 
 			case JsonValueKind.Object when RequirementRuleCompiler.IsKeyValuePair(value.GetType()):
@@ -195,7 +203,8 @@ internal static class GraphValidator
 
 	private static void DescendDictionary(
 		JsonElement element,
-		IDictionary dictionary,
+		object dictionary,
+		IEnumerable<DictionaryEntry> entries,
 		JsonSerializerOptions plainOptions,
 		JsonSerializerOptions userOptions,
 		StringComparer comparer,
@@ -210,7 +219,7 @@ internal static class GraphValidator
 		// indexer returns null for a key of the wrong CLR type (e.g. int) instead of matching the
 		// string key parsed from JSON, and throws outright for some read-only implementations
 		// (e.g. ImmutableDictionary). DictionaryEntry enumeration works uniformly for both.
-		foreach (DictionaryEntry entry in dictionary)
+		foreach (DictionaryEntry entry in entries)
 		{
 			if (entry.Value is null)
 			{
@@ -312,7 +321,7 @@ internal static class GraphValidator
 	/// maps them into a <see cref="SortedDictionary{TKey, TValue}"/> over it, so two names fold
 	/// together exactly when the dictionary itself folded them.
 	/// </remarks>
-	private static IDictionary<string, JsonElement>? MapByKeyComparer(JsonElement element, IDictionary dictionary)
+	private static IDictionary<string, JsonElement>? MapByKeyComparer(JsonElement element, object dictionary)
 	{
 		IDictionary<string, JsonElement> keys;
 
@@ -350,7 +359,7 @@ internal static class GraphValidator
 	/// The comparer, an <see cref="IEqualityComparer{T}"/> or an <see cref="IComparer{T}"/> of
 	/// <see cref="string"/>; or <see langword="null"/> when the dictionary exposes neither.
 	/// </returns>
-	private static object? GetKeyComparer(IDictionary dictionary)
+	private static object? GetKeyComparer(object dictionary)
 	{
 		Type type = dictionary.GetType();
 
@@ -379,6 +388,60 @@ internal static class GraphValidator
 	}
 
 	private static readonly string[] KeyComparerPropertyNames = ["Comparer", "KeyComparer"];
+
+	private static IEnumerable<DictionaryEntry> EnumerateEntries(IDictionary dictionary)
+	{
+		foreach (DictionaryEntry entry in dictionary)
+		{
+			yield return entry;
+		}
+	}
+
+	/// <summary>
+	/// Enumerates a generic-only dictionary's <see cref="KeyValuePair{TKey, TValue}"/> entries as
+	/// <see cref="DictionaryEntry"/> values, so <see cref="DescendDictionary"/> can pair them the same
+	/// way it pairs a non-generic <see cref="IDictionary"/>.
+	/// </summary>
+	/// <param name="dictionary">The materialized dictionary.</param>
+	/// <param name="entryType">Its closed <see cref="KeyValuePair{TKey, TValue}"/> entry type.</param>
+	/// <returns>Each entry whose key is not null.</returns>
+	private static IEnumerable<DictionaryEntry> EnumerateEntries(IEnumerable dictionary, Type entryType)
+	{
+		PropertyInfo keyProperty = entryType.GetProperty("Key")!;
+		PropertyInfo valueProperty = entryType.GetProperty("Value")!;
+
+		foreach (object? item in dictionary)
+		{
+			if (item is not null && entryType.IsInstanceOfType(item) && keyProperty.GetValue(item) is { } key)
+			{
+				yield return new DictionaryEntry(key, valueProperty.GetValue(item));
+			}
+		}
+	}
+
+	/// <summary>
+	/// Finds the <see cref="KeyValuePair{TKey, TValue}"/> entry type of a type that implements
+	/// <see cref="IDictionary{TKey, TValue}"/> or <see cref="IReadOnlyDictionary{TKey, TValue}"/>.
+	/// </summary>
+	/// <param name="type">The runtime type of the materialized value.</param>
+	/// <param name="entryType">The closed entry type, when one was found.</param>
+	/// <returns>True when <paramref name="type"/> is a generic dictionary.</returns>
+	private static bool TryGetGenericDictionaryEntryType(Type type, out Type? entryType)
+	{
+		foreach (Type candidate in type.GetInterfaces())
+		{
+			if (candidate.IsGenericType
+				&& (candidate.GetGenericTypeDefinition() == typeof(IDictionary<,>)
+					|| candidate.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)))
+			{
+				entryType = typeof(KeyValuePair<,>).MakeGenericType(candidate.GetGenericArguments());
+				return true;
+			}
+		}
+
+		entryType = null;
+		return false;
+	}
 
 	/// <summary>
 	/// Parses every property name of a JSON object into a dictionary key, through the same converter
