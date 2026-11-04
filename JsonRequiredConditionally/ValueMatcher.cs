@@ -147,8 +147,25 @@ internal static class ValueMatcher
 			&& actualValue!.Equals(expectedValue);
 	}
 
+	/// <summary>
+	/// Resolves a string to an enum member only when it is exactly one of the enum's declared names.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="Enum.Parse(Type, string, bool)"/> on its own also accepts numeric strings
+	/// (<c>"1"</c>, or an undefined <c>"999"</c>), surrounding whitespace (<c>" Advanced "</c>) and
+	/// comma-separated combinations (<c>"Basic, Advanced"</c>), even on an enum that is not
+	/// <see cref="FlagsAttribute"/>. None of those is a member's own name, and reading a number out of
+	/// a string is the coercion <see cref="TryWiden"/> refuses, so they are rejected here and
+	/// <see cref="CanEverMatch"/> reports the rule as one that can never match.
+	/// </remarks>
 	private static bool TryParseEnum(Type enumType, string name, out object? value)
 	{
+		if (Array.IndexOf(Enum.GetNames(enumType), name) < 0)
+		{
+			value = null;
+			return false;
+		}
+
 		try
 		{
 			value = Enum.Parse(enumType, name, ignoreCase: false);

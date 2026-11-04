@@ -95,6 +95,19 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void NumericStringAgainstEnumSiblingThrowsOnFirstUse()
+	{
+		// Enum.Parse reads "1" as Advanced, so this rule used to fire for {"Kind":"Advanced"}.
+		// "1" is not a member's name, so no Kind can match it and the rule is rejected instead.
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<NumericStringEnumSiblingConfig>(
+				"""{"Kind":"Advanced"}""", CreateOptions()));
+
+		Assert.Contains(nameof(NumericStringEnumSiblingConfig), exception.Message);
+		Assert.Contains(nameof(NumericStringEnumSiblingConfig.Kind), exception.Message);
+	}
+
+	[TestMethod]
 	public void UnconvertibleAttributeValueThrowsOnFirstUse()
 	{
 		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
