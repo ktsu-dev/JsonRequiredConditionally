@@ -203,7 +203,7 @@ internal static class GraphValidator
 		ViolationCollector violations)
 	{
 		Dictionary<object, (string Name, JsonElement Element)>? parsedKeys = null;
-		Dictionary<string, JsonElement>? comparerKeys = null;
+		IDictionary<string, JsonElement>? comparerKeys = null;
 		bool comparerResolved = false;
 
 		// Enumerate the dictionary's own entries rather than indexing it: IDictionary's object-keyed
@@ -305,16 +305,31 @@ internal static class GraphValidator
 	/// one as it does during deserialization; or <see langword="null"/> when the comparer is ordinal
 	/// or cannot be found, and each key matches only its own exact spelling.
 	/// </returns>
-	private static Dictionary<string, JsonElement>? MapByKeyComparer(JsonElement element, IDictionary dictionary)
+	/// <remarks>
+	/// An equality comparer, as a <see cref="Dictionary{TKey, TValue}"/> has, maps the names into a
+	/// <see cref="Dictionary{TKey, TValue}"/> over it. An order-only comparer, as a
+	/// <see cref="SortedDictionary{TKey, TValue}"/> or <see cref="SortedList{TKey, TValue}"/> has,
+	/// maps them into a <see cref="SortedDictionary{TKey, TValue}"/> over it, so two names fold
+	/// together exactly when the dictionary itself folded them.
+	/// </remarks>
+	private static IDictionary<string, JsonElement>? MapByKeyComparer(JsonElement element, IDictionary dictionary)
 	{
-		if (GetKeyComparer(dictionary) is not { } keyComparer
-			|| keyComparer.Equals(EqualityComparer<string>.Default)
-			|| keyComparer.Equals(StringComparer.Ordinal))
-		{
-			return null;
-		}
+		IDictionary<string, JsonElement> keys;
 
-		Dictionary<string, JsonElement> keys = new(keyComparer);
+		switch (GetKeyComparer(dictionary))
+		{
+			case IEqualityComparer<string> equalityComparer
+				when !equalityComparer.Equals(EqualityComparer<string>.Default) && !equalityComparer.Equals(StringComparer.Ordinal):
+				keys = new Dictionary<string, JsonElement>(equalityComparer);
+				break;
+
+			case IComparer<string> orderComparer when !orderComparer.Equals(StringComparer.Ordinal):
+				keys = new SortedDictionary<string, JsonElement>(orderComparer);
+				break;
+
+			default:
+				return null;
+		}
 
 		foreach (JsonProperty property in element.EnumerateObject())
 		{
@@ -326,12 +341,16 @@ internal static class GraphValidator
 
 	/// <summary>
 	/// Reads the key comparer of a string-keyed dictionary, from the <c>Comparer</c> property that
-	/// <see cref="Dictionary{TKey, TValue}"/> and <c>ConcurrentDictionary</c> expose, or the
-	/// <c>KeyComparer</c> property of <c>ImmutableDictionary</c>.
+	/// <see cref="Dictionary{TKey, TValue}"/>, <c>ConcurrentDictionary</c>,
+	/// <see cref="SortedDictionary{TKey, TValue}"/> and <see cref="SortedList{TKey, TValue}"/> expose,
+	/// or the <c>KeyComparer</c> property of <c>ImmutableDictionary</c>.
 	/// </summary>
 	/// <param name="dictionary">The materialized dictionary.</param>
-	/// <returns>The comparer, or <see langword="null"/> when the dictionary exposes none.</returns>
-	private static IEqualityComparer<string>? GetKeyComparer(IDictionary dictionary)
+	/// <returns>
+	/// The comparer, an <see cref="IEqualityComparer{T}"/> or an <see cref="IComparer{T}"/> of
+	/// <see cref="string"/>; or <see langword="null"/> when the dictionary exposes neither.
+	/// </returns>
+	private static object? GetKeyComparer(IDictionary dictionary)
 	{
 		Type type = dictionary.GetType();
 
@@ -348,7 +367,9 @@ internal static class GraphValidator
 				continue;
 			}
 
-			if (property is not null && property.GetIndexParameters().Length == 0 && property.GetValue(dictionary) is IEqualityComparer<string> keyComparer)
+			if (property is not null
+				&& property.GetIndexParameters().Length == 0
+				&& property.GetValue(dictionary) is { } keyComparer and (IEqualityComparer<string> or IComparer<string>))
 			{
 				return keyComparer;
 			}
