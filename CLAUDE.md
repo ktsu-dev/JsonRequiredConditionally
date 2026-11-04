@@ -124,6 +124,9 @@ unwrapped *recursively* (`EnumerateElementTypes`), so `List<List<T>>`, `T[][]` a
 `Dictionary<string, List<T>>` reach `T` — unwrapping one level left the holder unclaimed and collapsed
 `Grid[0][0].Tuning` to a bare `Tuning`. `Nullable<T>` is unwrapped the same way, both for a member and for
 an element, so a `T?` or `List<T?>` of a decorated struct keeps its holder claimed and its paths intact.
+`KeyValuePair<TKey, TValue>` is unwrapped to both type arguments, and the walk descends into its `Key` and
+`Value` (named through the caller's naming policy, as System.Text.Json's built-in pair converter reads them),
+because that converter leaves the pair's contract with no properties to walk.
 A list, array or dictionary is itself claimed when its elements reach a decorated member
 (`IsPairableCollection`/`CollectionReachesRules`), which only matters at the payload root: there it
 makes `Deserialize<List<T>>` report every failing element as `[i].Tuning` in one exception, and
