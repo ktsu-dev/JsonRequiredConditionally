@@ -1360,3 +1360,62 @@ public sealed class AmbiguousConstructorProbe
 
 	public int Value { get; }
 }
+
+/// <summary>
+/// A dictionary that implements only the generic <see cref="IDictionary{TKey, TValue}"/>, not the
+/// non-generic <see cref="System.Collections.IDictionary"/>.
+/// </summary>
+/// <typeparam name="TKey">The key type.</typeparam>
+/// <typeparam name="TValue">The value type.</typeparam>
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "The fixture is a dictionary.")]
+public sealed class GenericOnlyDictionary<TKey, TValue> : IDictionary<TKey, TValue>
+	where TKey : notnull
+{
+	private readonly Dictionary<TKey, TValue> inner = [];
+
+	public TValue this[TKey key] { get => inner[key]; set => inner[key] = value; }
+
+	public ICollection<TKey> Keys => inner.Keys;
+
+	public ICollection<TValue> Values => inner.Values;
+
+	public int Count => inner.Count;
+
+	public bool IsReadOnly => false;
+
+	public void Add(TKey key, TValue value) => inner.Add(key, value);
+
+	public void Add(KeyValuePair<TKey, TValue> item) => inner.Add(item.Key, item.Value);
+
+	public void Clear() => inner.Clear();
+
+	public bool Contains(KeyValuePair<TKey, TValue> item) => ((ICollection<KeyValuePair<TKey, TValue>>)inner).Contains(item);
+
+	public bool ContainsKey(TKey key) => inner.ContainsKey(key);
+
+	public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => ((ICollection<KeyValuePair<TKey, TValue>>)inner).CopyTo(array, arrayIndex);
+
+	public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => inner.GetEnumerator();
+
+	public bool Remove(TKey key) => inner.Remove(key);
+
+	public bool Remove(KeyValuePair<TKey, TValue> item) => ((ICollection<KeyValuePair<TKey, TValue>>)inner).Remove(item);
+
+	public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) => inner.TryGetValue(key, out value);
+
+	System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+/// <summary>Holds decorated children behind a string-keyed generic-only dictionary.</summary>
+public sealed class GenericOnlyDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public GenericOnlyDictionary<string, SimpleConfig> Items { get; set; } = [];
+}
+
+/// <summary>Holds decorated children behind an int-keyed generic-only dictionary.</summary>
+public sealed class IntKeyedGenericOnlyDictionaryHolder
+{
+	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
+	public GenericOnlyDictionary<int, SimpleConfig> Items { get; set; } = [];
+}
