@@ -150,6 +150,9 @@ value, or by the enum member's own name written as a string:
 [JsonRequiredIfSiblingIs(nameof(Kind), "Advanced")]  // matches Kind == Kind.Advanced
 ```
 
+A `float` and a `double` are compared at `float` precision, whichever of the two is the constant:
+`0.1f` against a `double` sibling matches a payload `0.1`, and so does `0.1` against a `float` sibling.
+
 Only numbers widen to other numbers. Strings, bools and chars are never coerced in either direction:
 a string sibling is compared ordinally against string constants only, a number is never formatted
 into a string or parsed out of one to make it match, and `0`/`1` never match a `bool` sibling nor

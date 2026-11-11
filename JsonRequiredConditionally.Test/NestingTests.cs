@@ -53,6 +53,37 @@ public class NestingTests
 	}
 
 	[TestMethod]
+	public void GenericOnlyDictionaryValuesAreValidated()
+	{
+		// The holder is claimed through the dictionary's value type, so it is materialized
+		// factory-free and this walk is the only thing that validates the entries.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<GenericOnlyDictionaryHolder>(
+				"""{"Items":{"a":{"Kind":"Basic"},"b":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Items.b.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void IntKeyedGenericOnlyDictionaryValuesAreValidated()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<IntKeyedGenericOnlyDictionaryHolder>(
+				"""{"Items":{"1":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Items.1.Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void ValidGenericOnlyDictionaryDeserializes()
+	{
+		GenericOnlyDictionaryHolder? holder = JsonSerializer.Deserialize<GenericOnlyDictionaryHolder>(
+			"""{"Items":{"a":{"Kind":"Advanced","Tuning":"fast"}}}""", CreateOptions());
+
+		Assert.AreEqual("fast", holder?.Items["a"].Tuning);
+	}
+
+	[TestMethod]
 	public void CaseInsensitiveDictionaryValidatesTheOccurrenceItKeeps()
 	{
 		// The comparer folds "a" and "A" into one entry that keeps the spelling "a" but the value of

@@ -143,6 +143,31 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
+	public void FloatAndDoubleMatchAtFloatPrecisionInBothDirections()
+	{
+		Assert.IsTrue(ValueMatcher.Matches(0.1d, 0.1f));
+		Assert.IsTrue(ValueMatcher.Matches(0.1f, 0.1d));
+		Assert.IsTrue(ValueMatcher.Matches(0.5d, 0.5f));
+		Assert.IsTrue(ValueMatcher.Matches(0.5f, 0.5d));
+		Assert.IsFalse(ValueMatcher.Matches(0.2d, 0.1f));
+		Assert.IsFalse(ValueMatcher.Matches(0.2f, 0.1d));
+		Assert.IsFalse(ValueMatcher.Matches(1e300d, float.PositiveInfinity));
+		Assert.IsFalse(ValueMatcher.Matches(float.PositiveInfinity, 1e300d));
+		Assert.IsTrue(ValueMatcher.Matches(double.PositiveInfinity, float.PositiveInfinity));
+		Assert.IsTrue(ValueMatcher.Matches(float.NaN, double.NaN));
+	}
+
+	[TestMethod]
+	public void CanEverMatchAcceptsFloatAndDoublePairingsWithinFloatRange()
+	{
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(double), 0.1f));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(float), 0.1d));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(float?), 0.1d));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(float), double.PositiveInfinity));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(float), 1e300d));
+	}
+
+	[TestMethod]
 	public void CanEverMatchRejectsAConstantNoValueOfTheSiblingTypeCouldEqual()
 	{
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), 2.4));
