@@ -682,6 +682,51 @@ public sealed class WholeDoubleSiblingConfig
 	public string? Detail { get; set; }
 }
 
+/// <summary>A <c>double</c> sibling compared against a <c>float</c> constant no double equals exactly.</summary>
+public sealed class FloatConstantDoubleSiblingConfig
+{
+	public double Ratio { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Ratio), 0.1f)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <c>float</c> sibling compared against a <c>double</c> constant no float equals exactly.</summary>
+public sealed class DoubleConstantFloatSiblingConfig
+{
+	public float Ratio { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Ratio), 0.1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <c>double</c> sibling compared against a <c>float</c> constant both types hold exactly.</summary>
+public sealed class ExactFloatConstantDoubleSiblingConfig
+{
+	public double Ratio { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Ratio), 0.5f)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <c>float</c> sibling compared against a <c>double</c> constant both types hold exactly.</summary>
+public sealed class ExactDoubleConstantFloatSiblingConfig
+{
+	public float Ratio { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Ratio), 0.5)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <c>float</c> sibling compared against a <c>double</c> constant beyond the range of <c>float</c>.</summary>
+public sealed class OutOfRangeDoubleConstantFloatSiblingConfig
+{
+	public float Ratio { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Ratio), 1e300)]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>
 /// A holder with a get-only child, used to drive the <c>JsonObjectCreationHandling</c> guard.
 /// </summary>

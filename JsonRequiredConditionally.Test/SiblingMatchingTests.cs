@@ -95,6 +95,64 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void FloatConstantMatchesDoubleSiblingAtFloatPrecision()
+	{
+		// 0.1f widened to 0.10000000149011612, which no payload 0.1 deserializes to, so this rule
+		// compiled and then never fired (#111).
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<FloatConstantDoubleSiblingConfig>(
+				"""{"Ratio":0.1}""", CreateOptions()));
+
+		Assert.Contains(nameof(FloatConstantDoubleSiblingConfig.Tuning), exception.Message);
+
+		FloatConstantDoubleSiblingConfig? config = JsonSerializer.Deserialize<FloatConstantDoubleSiblingConfig>(
+			"""{"Ratio":0.2}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Tuning);
+	}
+
+	[TestMethod]
+	public void DoubleConstantMatchesFloatSiblingAtFloatPrecision()
+	{
+		// 0.1 doesn't round-trip through float, so this rule used to be refused on first use,
+		// although a payload 0.1 deserializes to exactly 0.1f (#111).
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<DoubleConstantFloatSiblingConfig>(
+				"""{"Ratio":0.1}""", CreateOptions()));
+
+		Assert.Contains(nameof(DoubleConstantFloatSiblingConfig.Tuning), exception.Message);
+
+		DoubleConstantFloatSiblingConfig? config = JsonSerializer.Deserialize<DoubleConstantFloatSiblingConfig>(
+			"""{"Ratio":0.2}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.IsNull(config.Tuning);
+	}
+
+	[TestMethod]
+	public void ExactFloatAndDoubleConstantsMatchInBothDirections()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<ExactFloatConstantDoubleSiblingConfig>(
+				"""{"Ratio":0.5}""", CreateOptions()));
+
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<ExactDoubleConstantFloatSiblingConfig>(
+				"""{"Ratio":0.5}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void DoubleConstantBeyondFloatRangeAgainstFloatSiblingThrowsOnFirstUse()
+	{
+		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<OutOfRangeDoubleConstantFloatSiblingConfig>(
+				"""{"Ratio":1}""", CreateOptions()));
+
+		Assert.Contains(nameof(OutOfRangeDoubleConstantFloatSiblingConfig.Ratio), exception.Message);
+	}
+
+	[TestMethod]
 	public void UnconvertibleAttributeValueThrowsOnFirstUse()
 	{
 		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
