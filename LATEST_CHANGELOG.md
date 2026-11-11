@@ -1,6 +1,7 @@
-## v1.2.32 (patch)
+## v1.2.33-pre.1 (prerelease)
 
-Changes since v1.2.31:
+Changes since v1.2.32:
 
-- Accept only a declared member name for an enum constant written as a string [patch] (#108) (matt-edmondson)
+- Bump the system group with 1 update (dependabot[bot])
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
