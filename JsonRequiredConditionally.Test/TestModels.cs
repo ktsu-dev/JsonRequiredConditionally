@@ -1361,6 +1361,15 @@ public sealed class AmbiguousConstructorProbe
 	public int Value { get; }
 }
 
+/// <summary>An enum sibling compared against a numeric string, which is not a member's name.</summary>
+public sealed class NumericStringEnumSiblingConfig
+{
+	public Kind Kind { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Kind), "1")]
+	public string? Tuning { get; set; }
+}
+
 /// <summary>
 /// A dictionary that implements only the generic <see cref="IDictionary{TKey, TValue}"/>, not the
 /// non-generic <see cref="System.Collections.IDictionary"/>.

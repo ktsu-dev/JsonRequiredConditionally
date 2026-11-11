@@ -217,6 +217,22 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
+	[DataRow("1")]
+	[DataRow("999")]
+	[DataRow(" Advanced ")]
+	[DataRow("Advanced ")]
+	[DataRow("Basic, Advanced")]
+	[DataRow("Basic,Advanced")]
+	public void EnumParseOnlyInputsAreNotMemberNames(string text)
+	{
+		// Enum.Parse accepts each of these, but none is a member's own name.
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), text));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind?), text));
+		Assert.IsFalse(ValueMatcher.Matches(Kind.Advanced, text));
+		Assert.IsFalse(ValueMatcher.Matches(text, Kind.Advanced));
+	}
+
+	[TestMethod]
 	public void CanEverMatchAcceptsWidenableAndEnumParseableValues()
 	{
 		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(long), 1));
