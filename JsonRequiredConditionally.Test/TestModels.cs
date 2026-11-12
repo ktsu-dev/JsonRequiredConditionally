@@ -1428,3 +1428,61 @@ public sealed class IntKeyedGenericOnlyDictionaryHolder
 	[SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Test fixture round-trips through JSON deserialization, which requires a settable collection property.")]
 	public GenericOnlyDictionary<int, SimpleConfig> Items { get; set; } = [];
 }
+
+/// <summary>An enum whose only nonzero member is negative, so no byte-backed enum can hold it.</summary>
+public enum NegativeOnly
+{
+	None = 0,
+	Minus = -1,
+}
+
+/// <summary>A byte-backed enum.</summary>
+[SuppressMessage("Design", "CA1028:Enum Storage should be Int32", Justification = "The underlying type is what the test is about.")]
+public enum ByteBacked : byte
+{
+	None = 0,
+	One = 1,
+	Max = 255,
+}
+
+/// <summary>A long-backed enum whose member is beyond the range of an int.</summary>
+[SuppressMessage("Design", "CA1028:Enum Storage should be Int32", Justification = "The underlying type is what the test is about.")]
+public enum WideOnly : long
+{
+	None = 0,
+	Big = (1L << 40) + 3,
+}
+
+/// <summary>A small enum whose member every integer-backed enum can hold.</summary>
+public enum SmallOnly
+{
+	None = 0,
+	One = 1,
+}
+
+/// <summary>A byte-backed enum sibling compared against a different enum's negative member.</summary>
+public sealed class CrossEnumNegativeConfig
+{
+	public ByteBacked K { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(K), NegativeOnly.Minus)]
+	public string? T { get; set; }
+}
+
+/// <summary>An int-backed enum sibling compared against a different enum's member beyond int's range.</summary>
+public sealed class CrossEnumWideConfig
+{
+	public Kind K { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(K), WideOnly.Big)]
+	public string? T { get; set; }
+}
+
+/// <summary>A byte-backed enum sibling compared against a different enum's in-range member.</summary>
+public sealed class CrossEnumInRangeConfig
+{
+	public ByteBacked K { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(K), SmallOnly.One)]
+	public string? T { get; set; }
+}
