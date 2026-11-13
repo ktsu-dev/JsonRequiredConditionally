@@ -168,6 +168,17 @@ public class ValueMatcherTests
 	}
 
 	[TestMethod]
+	public void CanEverMatchRangeChecksAConstantOfADifferentEnum()
+	{
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(ByteBacked), NegativeOnly.Minus));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(ByteBacked?), NegativeOnly.Minus));
+		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(Kind), WideOnly.Big));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(ByteBacked), SmallOnly.One));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(Kind), SmallOnly.One));
+		Assert.IsTrue(ValueMatcher.CanEverMatch(typeof(ByteBacked), ByteBacked.Max));
+	}
+
+	[TestMethod]
 	public void CanEverMatchRejectsAConstantNoValueOfTheSiblingTypeCouldEqual()
 	{
 		Assert.IsFalse(ValueMatcher.CanEverMatch(typeof(int), 2.4));

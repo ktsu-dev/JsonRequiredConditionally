@@ -106,8 +106,10 @@ internal static class ValueMatcher
 
 		if (target.IsEnum)
 		{
-			return expected.GetType().IsEnum
-				|| (expected is string name && TryParseEnum(target, name, out _))
+			// A constant of the sibling's own enum was accepted above, so an enum here is a different one. It
+			// goes through TryWiden like any integer, so a member outside the sibling's underlying range, such
+			// as -1 against a byte-backed enum, is refused rather than compiling into a rule that never fires (#119).
+			return (expected is string name && TryParseEnum(target, name, out _))
 				|| TryWiden(expected, Enum.GetUnderlyingType(target), out _);
 		}
 

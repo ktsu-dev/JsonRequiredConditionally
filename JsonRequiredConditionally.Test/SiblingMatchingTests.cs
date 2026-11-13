@@ -272,6 +272,28 @@ public class SiblingMatchingTests
 	}
 
 	[TestMethod]
+	public void EnumSiblingAgainstADifferentEnumOutOfRangeThrowsOnFirstUse()
+	{
+		InvalidOperationException negative = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<CrossEnumNegativeConfig>("{}", CreateOptions()));
+		Assert.Contains(nameof(CrossEnumNegativeConfig), negative.Message);
+		Assert.Contains(nameof(ByteBacked), negative.Message);
+
+		InvalidOperationException wide = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<CrossEnumWideConfig>("{}", CreateOptions()));
+		Assert.Contains(nameof(CrossEnumWideConfig), wide.Message);
+	}
+
+	[TestMethod]
+	public void EnumSiblingAgainstADifferentEnumInRangeStillFires()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<CrossEnumInRangeConfig>("{\"K\":1}", CreateOptions()));
+		Assert.IsNotNull(JsonSerializer.Deserialize<CrossEnumInRangeConfig>("{\"K\":1,\"T\":\"x\"}", CreateOptions()));
+		Assert.IsNotNull(JsonSerializer.Deserialize<CrossEnumInRangeConfig>("{\"K\":255}", CreateOptions()));
+	}
+
+	[TestMethod]
 	public void GuidSiblingAgainstNullThrowsOnFirstUse()
 	{
 		InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
