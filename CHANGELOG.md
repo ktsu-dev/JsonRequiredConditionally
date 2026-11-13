@@ -1,3 +1,9 @@
+## v1.2.33 (patch)
+
+Changes since v1.2.32:
+
+- Range-check a constant of a different enum against an enum sibling [patch] (#122) (matt-edmondson)
+
 ## v1.2.33-pre.2 (prerelease)
 
 Changes since v1.2.33-pre.1:

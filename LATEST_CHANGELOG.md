@@ -1,6 +1,6 @@
-## v1.2.33-pre.2 (prerelease)
+## v1.2.33 (patch)
 
-Changes since v1.2.33-pre.1:
+Changes since v1.2.32:
 
-- Bump MSTest.Sdk from 4.5.2 to 4.5.3 (dependabot[bot])
+- Range-check a constant of a different enum against an enum sibling [patch] (#122) (matt-edmondson)
 
