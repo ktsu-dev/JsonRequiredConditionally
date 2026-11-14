@@ -383,6 +383,15 @@ reject on read, so writing is refused too rather than letting the library produc
 consume. Modelling `$id`/`$ref`/`$values` correctly is future work; until then the error is loud rather
 than wrong.
 
+**A set-only property whose type reaches a decorated member throws `NotSupportedException` on
+deserialization.** System.Text.Json populates a property with a setter and no getter, such as
+`public Cfg? Child { set => child = value; }`, but its value can't be read back, so the requirements
+behind it could never be checked. The library refuses it, rather than accepting an invalid payload,
+whenever the property sits on a claimed type or on any type nested beneath one. A set-only property on a
+type that is not claimed itself still validates, because its own type is claimed directly. Give the
+property a getter to have it validated. Serializing is unaffected, since a set-only property is never
+written.
+
 **Not compatible with trimming or ahead-of-time compilation.** The factory is annotated with
 `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`; constructing it in a trimmed or AOT-published
 application produces a build warning.
