@@ -656,6 +656,75 @@ internal static class RequirementRuleCompiler
 		}
 	}
 
+	private static readonly ConcurrentDictionary<Type, string?> SetOnlyMemberCache = new();
+
+	/// <summary>
+	/// Finds a set-only member, anywhere in the graph a claimed type's walk covers, whose type reaches
+	/// a decorated member.
+	/// </summary>
+	/// <param name="type">The claimed type being read.</param>
+	/// <returns>The offending member as <c>Type.Member</c>, or null when there is none.</returns>
+	/// <remarks>
+	/// System.Text.Json populates a property that has a setter and no getter, but the walk can't read
+	/// the materialized value back, so <see cref="IsPopulatedByDeserialization"/> skips it, and so does
+	/// reachability. Inside a claimed subtree the walk is the sole validator, so every rule behind such
+	/// a member went unchecked and an invalid payload was accepted (#123). The search follows the same
+	/// reachable member types as eligibility, from <paramref name="type"/> down, because a holder nested
+	/// under a claimed one is materialized factory-free too, whether or not it would be claimed on its own.
+	/// A set-only member of a holder that is not claimed at all is unaffected: the member's own type is
+	/// claimed and validated by its own converter.
+	/// </remarks>
+	internal static string? FindSetOnlyMemberReachingRules(Type type) =>
+		SetOnlyMemberCache.GetOrAdd(type, SearchSetOnlyMemberReachingRules);
+
+	private static string? SearchSetOnlyMemberReachingRules(Type root)
+	{
+		HashSet<Type> visited = [];
+		Queue<Type> pending = new(UnwrapMemberType(root));
+
+		while (pending.Count > 0)
+		{
+			Type current = pending.Dequeue();
+
+			if (!visited.Add(current))
+			{
+				continue;
+			}
+
+			if (FindDirectSetOnlyMemberReachingRules(current) is JsonPropertyInfo property)
+			{
+				return $"{current.Name}.{property.Name}";
+			}
+
+			foreach (Type memberType in EnumerateReachableMemberTypes(current))
+			{
+				pending.Enqueue(memberType);
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Finds a member of <paramref name="type"/> itself that has a setter, no getter and no
+	/// property-level converter, and whose type reaches a decorated member.
+	/// </summary>
+	/// <param name="type">The type whose own members are checked.</param>
+	/// <returns>The first such member, or null.</returns>
+	private static JsonPropertyInfo? FindDirectSetOnlyMemberReachingRules(Type type)
+	{
+		if (IsKeyValuePair(type) || TryGetTypeInfo(FieldAwareProbeOptions, type) is not JsonTypeInfo typeInfo)
+		{
+			return null;
+		}
+
+		return typeInfo.Properties.FirstOrDefault(property =>
+			property.Get is null
+			&& property.Set is not null
+			&& property.CustomConverter is null
+			&& UnwrapMemberType(property.PropertyType).Any(HasRules));
+	}
+
 	/// <summary>
 	/// Unwraps a member's declared type to the types the walk reaches through it.
 	/// </summary>
