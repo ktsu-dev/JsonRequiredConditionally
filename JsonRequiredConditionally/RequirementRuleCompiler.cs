@@ -675,40 +675,55 @@ internal static class RequirementRuleCompiler
 	/// claimed and validated by its own converter.
 	/// </remarks>
 	internal static string? FindSetOnlyMemberReachingRules(Type type) =>
-		SetOnlyMemberCache.GetOrAdd(type, static root =>
+		SetOnlyMemberCache.GetOrAdd(type, SearchSetOnlyMemberReachingRules);
+
+	private static string? SearchSetOnlyMemberReachingRules(Type root)
+	{
+		HashSet<Type> visited = [];
+		Queue<Type> pending = new(UnwrapMemberType(root));
+
+		while (pending.Count > 0)
 		{
-			HashSet<Type> visited = [];
-			Queue<Type> pending = new(UnwrapMemberType(root));
+			Type current = pending.Dequeue();
 
-			while (pending.Count > 0)
+			if (!visited.Add(current))
 			{
-				Type current = pending.Dequeue();
-
-				if (!visited.Add(current))
-				{
-					continue;
-				}
-
-				if (!IsKeyValuePair(current) && TryGetTypeInfo(FieldAwareProbeOptions, current) is JsonTypeInfo typeInfo)
-				{
-					foreach (JsonPropertyInfo property in typeInfo.Properties)
-					{
-						if (property.Get is null && property.Set is not null && property.CustomConverter is null
-							&& UnwrapMemberType(property.PropertyType).Any(HasRules))
-						{
-							return $"{current.Name}.{property.Name}";
-						}
-					}
-				}
-
-				foreach (Type memberType in EnumerateReachableMemberTypes(current))
-				{
-					pending.Enqueue(memberType);
-				}
+				continue;
 			}
 
+			if (FindDirectSetOnlyMemberReachingRules(current) is JsonPropertyInfo property)
+			{
+				return $"{current.Name}.{property.Name}";
+			}
+
+			foreach (Type memberType in EnumerateReachableMemberTypes(current))
+			{
+				pending.Enqueue(memberType);
+			}
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Finds a member of <paramref name="type"/> itself that has a setter, no getter and no
+	/// property-level converter, and whose type reaches a decorated member.
+	/// </summary>
+	/// <param name="type">The type whose own members are checked.</param>
+	/// <returns>The first such member, or null.</returns>
+	private static JsonPropertyInfo? FindDirectSetOnlyMemberReachingRules(Type type)
+	{
+		if (IsKeyValuePair(type) || TryGetTypeInfo(FieldAwareProbeOptions, type) is not JsonTypeInfo typeInfo)
+		{
 			return null;
-		});
+		}
+
+		return typeInfo.Properties.FirstOrDefault(property =>
+			property.Get is null
+			&& property.Set is not null
+			&& property.CustomConverter is null
+			&& UnwrapMemberType(property.PropertyType).Any(HasRules));
+	}
 
 	/// <summary>
 	/// Unwraps a member's declared type to the types the walk reaches through it.
