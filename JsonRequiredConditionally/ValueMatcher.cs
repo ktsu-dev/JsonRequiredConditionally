@@ -4,6 +4,7 @@ namespace ktsu.JsonRequiredConditionally;
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -462,16 +463,16 @@ internal static class ValueMatcher
 
 	private static MethodInfo? FindConversionOperator(Type declaringType, Type from, Type to)
 	{
-		foreach (MethodInfo method in declaringType.GetMethods(BindingFlags.Public | BindingFlags.Static))
-		{
-			if (method.Name is "op_Explicit" or "op_Implicit" && method.ReturnType == to)
-			{
-				ParameterInfo[] parameters = method.GetParameters();
+		IEnumerable<MethodInfo> operators = declaringType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+			.Where(method => method.Name is "op_Explicit" or "op_Implicit" && method.ReturnType == to);
 
-				if (parameters.Length == 1 && parameters[0].ParameterType == from)
-				{
-					return method;
-				}
+		foreach (MethodInfo method in operators)
+		{
+			ParameterInfo[] parameters = method.GetParameters();
+
+			if (parameters.Length == 1 && parameters[0].ParameterType == from)
+			{
+				return method;
 			}
 		}
 
