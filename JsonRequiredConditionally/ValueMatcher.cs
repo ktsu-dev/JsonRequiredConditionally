@@ -268,14 +268,21 @@ internal static class ValueMatcher
 	/// Every conversion is required to preserve the value; see <see cref="PreservesValue"/>.
 	/// </para>
 	/// </remarks>
-	private static bool TryWiden(object value, Type targetType, out object? widened)
+	private static bool TryWiden(object value, Type targetType, out object? widened) =>
+		IsWideNumber(targetType)
+			? TryWidenToWideNumber(value, targetType, out widened)
+			: TryWidenPrimitive(value, targetType, out widened);
+
+	/// <summary>
+	/// Converts a value between the numeric primitives <see cref="IsNumeric"/> accepts.
+	/// </summary>
+	/// <param name="value">The value to convert.</param>
+	/// <param name="targetType">The type to convert it to.</param>
+	/// <param name="widened">The converted value, or null when conversion is not possible.</param>
+	/// <returns>True when the value was converted.</returns>
+	private static bool TryWidenPrimitive(object value, Type targetType, out object? widened)
 	{
 		Type valueType = value.GetType();
-
-		if (IsWideNumber(targetType))
-		{
-			return TryWidenToWideNumber(value, targetType, out widened);
-		}
 
 		if (!IsNumeric(targetType) || !IsNumeric(valueType.IsEnum ? Enum.GetUnderlyingType(valueType) : valueType))
 		{
@@ -373,75 +380,92 @@ internal static class ValueMatcher
 	private static bool TryWidenToWideNumber(object value, Type targetType, out object? widened)
 	{
 		widened = null;
-		Type valueType = value.GetType();
 
-		if (valueType.IsEnum)
+		if (value.GetType().IsEnum)
 		{
-			valueType = Enum.GetUnderlyingType(valueType);
-			value = Convert.ChangeType(value, valueType, CultureInfo.InvariantCulture);
+			value = Convert.ChangeType(value, Enum.GetUnderlyingType(value.GetType()), CultureInfo.InvariantCulture);
 		}
 
-		if (!IsNumeric(valueType) || value is IntPtr or UIntPtr)
+		if (!IsNumeric(value.GetType()) || value is IntPtr or UIntPtr)
 		{
 			return false;
 		}
 
-		bool isFloatingPoint = value is float or double or decimal;
-
 		try
 		{
-			if (targetType.FullName == "System.Half")
-			{
-				double number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
-
-				if (!isFloatingPoint && !PreservesValue(value, number))
-				{
-					return false;
-				}
-
-				object half = ApplyConversionOperator(typeof(double), targetType, number);
-				double back = (double)ApplyConversionOperator(targetType, typeof(double), half);
-
-				bool overflowed = double.IsInfinity(back) && !double.IsInfinity(number);
-				bool exact = back.Equals(number);
-
-				widened = !overflowed && (exact || value is float or double) ? half : null;
-				return widened is not null;
-			}
-
-			bool unsigned = targetType.FullName == "System.UInt128";
-
-			if (isFloatingPoint)
-			{
-				object converted = ApplyConversionOperator(valueType, targetType, value);
-
-				widened = ApplyConversionOperator(targetType, valueType, converted).Equals(value) ? converted : null;
-				return widened is not null;
-			}
-
-			if (value is ulong large)
-			{
-				widened = ApplyConversionOperator(typeof(ulong), targetType, large);
-				return true;
-			}
-
-			long integer = Convert.ToInt64(value, CultureInfo.InvariantCulture);
-
-			if (unsigned && integer < 0)
-			{
-				return false;
-			}
-
-			widened = unsigned
-				? ApplyConversionOperator(typeof(ulong), targetType, (ulong)integer)
-				: ApplyConversionOperator(typeof(long), targetType, integer);
-			return true;
+			widened = targetType.FullName == "System.Half"
+				? WidenToHalf(value, targetType)
+				: WidenToInteger128(value, targetType);
+			return widened is not null;
 		}
 		catch (Exception exception) when (exception is TargetInvocationException or OverflowException or InvalidCastException or NotSupportedException)
 		{
 			widened = null;
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// Converts a numeric primitive to <c>Half</c>, through <see cref="double"/>.
+	/// </summary>
+	/// <param name="value">A numeric primitive other than a pointer.</param>
+	/// <param name="halfType">The <c>System.Half</c> type.</param>
+	/// <returns>The <c>Half</c>, or null when no <c>Half</c> equals the constant.</returns>
+	/// <remarks>
+	/// A <see cref="float"/> or <see cref="double"/> constant is rounded to the nearest <c>Half</c> and
+	/// refused only when it overflows to an infinity. Any other constant must come back unchanged when
+	/// the <c>Half</c> is converted to the constant's own type: that refuses 2049, which rounds to 2048,
+	/// and an infinity, which no integer or decimal can hold.
+	/// </remarks>
+	private static object? WidenToHalf(object value, Type halfType)
+	{
+		double number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+		object half = ApplyConversionOperator(typeof(double), halfType, number);
+		double back = (double)ApplyConversionOperator(halfType, typeof(double), half);
+
+		if (value is float or double)
+		{
+			return double.IsInfinity(back) && !double.IsInfinity(number) ? null : half;
+		}
+
+		return PreservesValue(value, back) ? half : null;
+	}
+
+	/// <summary>
+	/// Converts a numeric primitive to <c>Int128</c> or <c>UInt128</c>.
+	/// </summary>
+	/// <param name="value">A numeric primitive other than a pointer.</param>
+	/// <param name="targetType">The <c>System.Int128</c> or <c>System.UInt128</c> type.</param>
+	/// <returns>The converted value, or null when no value of the target type equals the constant.</returns>
+	/// <remarks>
+	/// A floating-point or decimal constant goes through the target's own operator from that type and
+	/// must convert back to itself, which refuses a fraction, a NaN and anything out of range. An integer
+	/// goes through <see cref="long"/> or <see cref="ulong"/>, refusing a negative one for <c>UInt128</c>.
+	/// </remarks>
+	private static object? WidenToInteger128(object value, Type targetType)
+	{
+		Type valueType = value.GetType();
+
+		if (value is float or double or decimal)
+		{
+			object converted = ApplyConversionOperator(valueType, targetType, value);
+
+			return ApplyConversionOperator(targetType, valueType, converted).Equals(value) ? converted : null;
+		}
+
+		if (value is ulong large)
+		{
+			return ApplyConversionOperator(typeof(ulong), targetType, large);
+		}
+
+		long integer = Convert.ToInt64(value, CultureInfo.InvariantCulture);
+
+		if (targetType.FullName != "System.UInt128")
+		{
+			return ApplyConversionOperator(typeof(long), targetType, integer);
+		}
+
+		return integer < 0 ? null : ApplyConversionOperator(typeof(ulong), targetType, (ulong)integer);
 	}
 
 	private static readonly ConcurrentDictionary<(Type From, Type To), MethodInfo?> ConversionOperators = new();

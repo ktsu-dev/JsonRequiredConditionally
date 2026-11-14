@@ -402,5 +402,11 @@ public class SiblingMatchingTests
 			() => JsonSerializer.Deserialize<OutOfRangeConstantHalfSiblingConfig>("""{"H":1}""", CreateOptions()));
 
 		Assert.Contains("can never equal", outOfRange.Message);
+
+		// An integer constant must convert exactly: 2049 rounds to 2048, which a payload 2048 would then match.
+		InvalidOperationException inexact = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<InexactIntegerConstantHalfSiblingConfig>("""{"H":2048}""", CreateOptions()));
+
+		Assert.Contains("can never equal", inexact.Message);
 	}
 }

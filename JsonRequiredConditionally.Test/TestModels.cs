@@ -1558,3 +1558,12 @@ public sealed class OutOfRangeConstantHalfSiblingConfig
 	[JsonRequiredIfSiblingIs(nameof(H), 100000)]
 	public string? Tuning { get; set; }
 }
+
+/// <summary>A <see cref="Half"/> sibling compared against an integer constant it rounds away (2049 becomes 2048).</summary>
+public sealed class InexactIntegerConstantHalfSiblingConfig
+{
+	public Half H { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(H), 2049)]
+	public string? Tuning { get; set; }
+}
