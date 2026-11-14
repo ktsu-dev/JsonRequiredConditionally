@@ -1486,3 +1486,75 @@ public sealed class CrossEnumInRangeConfig
 	[JsonRequiredIfSiblingIs(nameof(K), SmallOnly.One)]
 	public string? T { get; set; }
 }
+
+/// <summary>An <see cref="Int128"/> sibling matched by an <c>int</c> attribute argument (#124).</summary>
+public sealed class Int128SiblingConfig
+{
+	public Int128 Big { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Big), 1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>An <see cref="Int128"/> sibling matched by a <c>long</c> constant beyond the <c>int</c> range.</summary>
+public sealed class Int128LongSiblingConfig
+{
+	public Int128 Big { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Big), long.MinValue)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="UInt128"/> sibling matched by an <c>int</c> attribute argument (#124).</summary>
+public sealed class UInt128SiblingConfig
+{
+	public UInt128 U { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(U), 1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="UInt128"/> sibling compared against a negative constant, which it can never hold.</summary>
+public sealed class NegativeConstantUInt128SiblingConfig
+{
+	public UInt128 U { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(U), -1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>An <see cref="Int128"/> sibling compared against a fractional constant, which it can never hold.</summary>
+public sealed class FractionalConstantInt128SiblingConfig
+{
+	public Int128 Big { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(Big), 2.5)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="Half"/> sibling matched by a <c>double</c> attribute argument (#124).</summary>
+public sealed class HalfSiblingConfig
+{
+	public Half H { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(H), 1.0)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="Half"/> sibling compared against a <c>double</c> constant no Half equals exactly.</summary>
+public sealed class InexactDoubleConstantHalfSiblingConfig
+{
+	public Half H { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(H), 0.1)]
+	public string? Tuning { get; set; }
+}
+
+/// <summary>A <see cref="Half"/> sibling compared against a constant beyond its range.</summary>
+public sealed class OutOfRangeConstantHalfSiblingConfig
+{
+	public Half H { get; set; }
+
+	[JsonRequiredIfSiblingIs(nameof(H), 100000)]
+	public string? Tuning { get; set; }
+}
