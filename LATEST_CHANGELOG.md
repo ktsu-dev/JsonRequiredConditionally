@@ -1,6 +1,6 @@
-## v1.2.33 (patch)
+## v1.2.34-pre.1 (prerelease)
 
-Changes since v1.2.32:
+Changes since v1.2.33:
 
-- Range-check a constant of a different enum against an enum sibling [patch] (#122) (matt-edmondson)
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
