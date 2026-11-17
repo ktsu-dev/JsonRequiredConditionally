@@ -324,4 +324,89 @@ public class SiblingMatchingTests
 			() => JsonSerializer.Deserialize<ObjectNullSiblingConfig>(
 				"""{"Mode":null}""", CreateOptions()));
 	}
+
+	[TestMethod]
+	public void IntegerConstantMatchesInt128Sibling()
+	{
+		// Int128 isn't IConvertible, so the rule used to be refused as one that "can never equal" (#124).
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<Int128SiblingConfig>("""{"Big":1}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+
+		Int128SiblingConfig? config = JsonSerializer.Deserialize<Int128SiblingConfig>("""{"Big":0}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+		Assert.AreEqual(Int128.Zero, config.Big);
+	}
+
+	[TestMethod]
+	public void LongConstantMatchesInt128Sibling()
+	{
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<Int128LongSiblingConfig>("""{"Big":-9223372036854775808}""", CreateOptions()));
+
+		Int128LongSiblingConfig? config = JsonSerializer.Deserialize<Int128LongSiblingConfig>(
+			"""{"Big":-9223372036854775809}""", CreateOptions());
+
+		Assert.IsNotNull(config);
+	}
+
+	[TestMethod]
+	public void IntegerConstantMatchesUInt128Sibling()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<UInt128SiblingConfig>("""{"U":1}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+
+		Assert.IsNotNull(JsonSerializer.Deserialize<UInt128SiblingConfig>("""{"U":0}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void DoubleConstantMatchesHalfSibling()
+	{
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<HalfSiblingConfig>("""{"H":1}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+
+		Assert.IsNotNull(JsonSerializer.Deserialize<HalfSiblingConfig>("""{"H":0}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void DoubleConstantMatchesHalfSiblingAtHalfPrecision()
+	{
+		// 0.1 doesn't round-trip through Half, but a payload 0.1 deserializes to the Half nearest it,
+		// so the two meet at Half precision, as float and double do (#111).
+		Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<InexactDoubleConstantHalfSiblingConfig>("""{"H":0.1}""", CreateOptions()));
+
+		Assert.IsNotNull(JsonSerializer.Deserialize<InexactDoubleConstantHalfSiblingConfig>("""{"H":0.2}""", CreateOptions()));
+	}
+
+	[TestMethod]
+	public void ConstantsNoWideSiblingCanHoldThrowOnFirstUse()
+	{
+		InvalidOperationException negative = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<NegativeConstantUInt128SiblingConfig>("""{"U":1}""", CreateOptions()));
+
+		Assert.Contains("can never equal", negative.Message);
+
+		InvalidOperationException fractional = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<FractionalConstantInt128SiblingConfig>("""{"Big":2}""", CreateOptions()));
+
+		Assert.Contains("can never equal", fractional.Message);
+
+		InvalidOperationException outOfRange = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<OutOfRangeConstantHalfSiblingConfig>("""{"H":1}""", CreateOptions()));
+
+		Assert.Contains("can never equal", outOfRange.Message);
+
+		// An integer constant must convert exactly: 2049 rounds to 2048, which a payload 2048 would then match.
+		InvalidOperationException inexact = Assert.ThrowsExactly<InvalidOperationException>(
+			() => JsonSerializer.Deserialize<InexactIntegerConstantHalfSiblingConfig>("""{"H":2048}""", CreateOptions()));
+
+		Assert.Contains("can never equal", inexact.Message);
+	}
 }

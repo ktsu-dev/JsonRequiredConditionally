@@ -2,7 +2,10 @@
 
 namespace ktsu.JsonRequiredConditionally;
 
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -265,7 +268,19 @@ internal static class ValueMatcher
 	/// Every conversion is required to preserve the value; see <see cref="PreservesValue"/>.
 	/// </para>
 	/// </remarks>
-	private static bool TryWiden(object value, Type targetType, out object? widened)
+	private static bool TryWiden(object value, Type targetType, out object? widened) =>
+		IsWideNumber(targetType)
+			? TryWidenToWideNumber(value, targetType, out widened)
+			: TryWidenPrimitive(value, targetType, out widened);
+
+	/// <summary>
+	/// Converts a value between the numeric primitives <see cref="IsNumeric"/> accepts.
+	/// </summary>
+	/// <param name="value">The value to convert.</param>
+	/// <param name="targetType">The type to convert it to.</param>
+	/// <param name="widened">The converted value, or null when conversion is not possible.</param>
+	/// <returns>True when the value was converted.</returns>
+	private static bool TryWidenPrimitive(object value, Type targetType, out object? widened)
 	{
 		Type valueType = value.GetType();
 
@@ -328,6 +343,164 @@ internal static class ValueMatcher
 			widened = null;
 			return false;
 		}
+	}
+
+	/// <summary>
+	/// Determines whether a type is <c>System.Int128</c>, <c>System.UInt128</c> or <c>System.Half</c>.
+	/// </summary>
+	/// <param name="type">The type to test.</param>
+	/// <returns>True for the three numeric types System.Text.Json reads natively that are not <see cref="IConvertible"/>.</returns>
+	/// <remarks>
+	/// They are recognized by name because netstandard2.0 has none of them, and this library uses no
+	/// conditional compilation. A C# attribute cannot hold a constant of any of them, so a rule against
+	/// one is always written with an ordinary <c>int</c>, <c>long</c> or <c>double</c> literal (#124).
+	/// </remarks>
+	private static bool IsWideNumber(Type type) =>
+		type.Assembly == typeof(object).Assembly
+		&& type.FullName is "System.Int128" or "System.UInt128" or "System.Half";
+
+	/// <summary>
+	/// Converts a numeric constant to <c>Int128</c>, <c>UInt128</c> or <c>Half</c> through the target
+	/// type's own conversion operators, reporting failure rather than throwing.
+	/// </summary>
+	/// <param name="value">The constant to convert.</param>
+	/// <param name="targetType">One of the types <see cref="IsWideNumber"/> accepts.</param>
+	/// <param name="widened">The converted value, or null when no value of the target type equals it.</param>
+	/// <returns>True when the value was converted.</returns>
+	/// <remarks>
+	/// None of the three implements <see cref="IConvertible"/>, so <see cref="Convert.ChangeType(object, Type, IFormatProvider)"/>
+	/// cannot reach them. An integer constant, and a floating-point one against <c>Int128</c> or
+	/// <c>UInt128</c>, must convert exactly, as <see cref="PreservesValue"/> requires elsewhere: a
+	/// negative constant against <c>UInt128</c> or <c>2.5</c> against <c>Int128</c> is refused. A
+	/// <see cref="float"/> or <see cref="double"/> constant against <c>Half</c> is instead rounded to the
+	/// nearest <c>Half</c>, the precision a payload carrying the same number deserializes to, as
+	/// <see cref="TryMatchAsSingle"/> does for <see cref="float"/> against <see cref="double"/> (#111).
+	/// It is refused only when it overflows to an infinity.
+	/// </remarks>
+	private static bool TryWidenToWideNumber(object value, Type targetType, out object? widened)
+	{
+		widened = null;
+
+		if (value.GetType().IsEnum)
+		{
+			value = Convert.ChangeType(value, Enum.GetUnderlyingType(value.GetType()), CultureInfo.InvariantCulture);
+		}
+
+		if (!IsNumeric(value.GetType()) || value is IntPtr or UIntPtr)
+		{
+			return false;
+		}
+
+		try
+		{
+			widened = targetType.FullName == "System.Half"
+				? WidenToHalf(value, targetType)
+				: WidenToInteger128(value, targetType);
+			return widened is not null;
+		}
+		catch (Exception exception) when (exception is TargetInvocationException or OverflowException or InvalidCastException or NotSupportedException)
+		{
+			widened = null;
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// Converts a numeric primitive to <c>Half</c>, through <see cref="double"/>.
+	/// </summary>
+	/// <param name="value">A numeric primitive other than a pointer.</param>
+	/// <param name="halfType">The <c>System.Half</c> type.</param>
+	/// <returns>The <c>Half</c>, or null when no <c>Half</c> equals the constant.</returns>
+	/// <remarks>
+	/// A <see cref="float"/> or <see cref="double"/> constant is rounded to the nearest <c>Half</c> and
+	/// refused only when it overflows to an infinity. Any other constant must come back unchanged when
+	/// the <c>Half</c> is converted to the constant's own type: that refuses 2049, which rounds to 2048,
+	/// and an infinity, which no integer or decimal can hold.
+	/// </remarks>
+	private static object? WidenToHalf(object value, Type halfType)
+	{
+		double number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+		object half = ApplyConversionOperator(typeof(double), halfType, number);
+		double back = (double)ApplyConversionOperator(halfType, typeof(double), half);
+
+		if (value is float or double)
+		{
+			return double.IsInfinity(back) && !double.IsInfinity(number) ? null : half;
+		}
+
+		return PreservesValue(value, back) ? half : null;
+	}
+
+	/// <summary>
+	/// Converts a numeric primitive to <c>Int128</c> or <c>UInt128</c>.
+	/// </summary>
+	/// <param name="value">A numeric primitive other than a pointer.</param>
+	/// <param name="targetType">The <c>System.Int128</c> or <c>System.UInt128</c> type.</param>
+	/// <returns>The converted value, or null when no value of the target type equals the constant.</returns>
+	/// <remarks>
+	/// A floating-point or decimal constant goes through the target's own operator from that type and
+	/// must convert back to itself, which refuses a fraction, a NaN and anything out of range. An integer
+	/// goes through <see cref="long"/> or <see cref="ulong"/>, refusing a negative one for <c>UInt128</c>.
+	/// </remarks>
+	private static object? WidenToInteger128(object value, Type targetType)
+	{
+		Type valueType = value.GetType();
+
+		if (value is float or double or decimal)
+		{
+			object converted = ApplyConversionOperator(valueType, targetType, value);
+
+			return ApplyConversionOperator(targetType, valueType, converted).Equals(value) ? converted : null;
+		}
+
+		if (value is ulong large)
+		{
+			return ApplyConversionOperator(typeof(ulong), targetType, large);
+		}
+
+		long integer = Convert.ToInt64(value, CultureInfo.InvariantCulture);
+
+		if (targetType.FullName != "System.UInt128")
+		{
+			return ApplyConversionOperator(typeof(long), targetType, integer);
+		}
+
+		return integer < 0 ? null : ApplyConversionOperator(typeof(ulong), targetType, (ulong)integer);
+	}
+
+	private static readonly ConcurrentDictionary<(Type From, Type To), MethodInfo?> ConversionOperators = new();
+
+	/// <summary>
+	/// Applies the conversion operator from <paramref name="from"/> to <paramref name="to"/> that one of
+	/// the <see cref="IsWideNumber"/> types declares.
+	/// </summary>
+	/// <exception cref="NotSupportedException">Neither type declares such an operator.</exception>
+	private static object ApplyConversionOperator(Type from, Type to, object value)
+	{
+		MethodInfo? method = ConversionOperators.GetOrAdd((from, to), static key =>
+			FindConversionOperator(key.From, key.From, key.To) ?? FindConversionOperator(key.To, key.From, key.To));
+
+		return method is null
+			? throw new NotSupportedException($"No conversion from {from} to {to}.")
+			: method.Invoke(null, [value])!;
+	}
+
+	private static MethodInfo? FindConversionOperator(Type declaringType, Type from, Type to)
+	{
+		IEnumerable<MethodInfo> operators = declaringType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+			.Where(method => method.Name is "op_Explicit" or "op_Implicit" && method.ReturnType == to);
+
+		foreach (MethodInfo method in operators)
+		{
+			ParameterInfo[] parameters = method.GetParameters();
+
+			if (parameters.Length == 1 && parameters[0].ParameterType == from)
+			{
+				return method;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>
