@@ -148,6 +148,7 @@ The throws are split by the path they can actually affect, in `SerializerFeature
 | Type-level `[JsonObjectCreationHandling]` | `EnsureCanClaim` (factory) | throws | throws |
 | `JsonSerializerOptions.PreferredObjectCreationHandling` | `EnsureCanRead` (converter `Read`) | throws | works |
 | Property-level `[JsonObjectCreationHandling]` | `EnsureCanRead` (converter `Read`) | throws | works |
+| Set-only member whose type reaches a decorated member, anywhere below the claimed type (`RequirementRuleCompiler.FindSetOnlyMemberReachingRules`, #123) | `EnsureCanRead` (converter `Read`) | throws | works |
 
 `Populate` is deserialization-only, so refusing it on write would protect nothing — except for the
 type-level route, where claiming the type makes its `JsonTypeInfoKind` `None` and System.Text.Json then

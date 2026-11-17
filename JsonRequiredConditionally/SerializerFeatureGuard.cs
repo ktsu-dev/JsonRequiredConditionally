@@ -139,7 +139,7 @@ internal static class SerializerFeatureGuard
 	/// </summary>
 	/// <param name="typeToConvert">The type being read.</param>
 	/// <param name="options">The caller's own options.</param>
-	/// <exception cref="NotSupportedException">Populate is configured at the options or property level.</exception>
+	/// <exception cref="NotSupportedException">Populate is configured at the options or property level, or a set-only member hides decorated members from the walk.</exception>
 	/// <remarks>
 	/// Both routes throw, even though only the options-level one is strictly impossible to model.
 	/// Eligibility is decided from a <see cref="Type"/> alone, with no options in hand, so a holder
@@ -153,6 +153,12 @@ internal static class SerializerFeatureGuard
 		if (PrefersPopulate(PreferredObjectCreationHandling, options))
 		{
 			throw new NotSupportedException(BuildPopulateMessage("JsonSerializerOptions.PreferredObjectCreationHandling"));
+		}
+
+		if (RequirementRuleCompiler.FindSetOnlyMemberReachingRules(typeToConvert) is string setOnlyMember)
+		{
+			throw new NotSupportedException(
+				$"{LibraryName} does not support a set-only property whose type reaches a [JsonRequiredIfSiblingIs] or [JsonRequiredAndNotEmpty] member, such as '{setOnlyMember}'. System.Text.Json populates it, but its value cannot be read back, so the requirements behind it could never be checked and an invalid payload would be accepted. Give the property a getter, or remove JsonRequiredConditionallyConverterFactory from JsonSerializerOptions.Converters.");
 		}
 
 		if (ObjectCreationHandling is null)

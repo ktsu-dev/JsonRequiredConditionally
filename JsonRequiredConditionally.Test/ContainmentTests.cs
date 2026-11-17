@@ -453,4 +453,64 @@ public class ContainmentTests
 
 		return true;
 	}
+
+	[TestMethod]
+	public void SetOnlyChildOfClaimedHolderIsRefusedOnRead()
+	{
+		// The walk can't read a set-only property back, so the child's rules went unchecked and
+		// {"Child":{"Kind":1}} was accepted without its Tuning (#123).
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<SetOnlyChildHolder>("""{"Kind":"Basic","Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.Contains($"{nameof(SetOnlyChildHolder)}.{nameof(SetOnlyChildHolder.Child)}", exception.Message);
+	}
+
+	[TestMethod]
+	public void SetOnlyCollectionOfClaimedHolderIsRefusedOnRead()
+	{
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<SetOnlyListHolder>("""{"Kind":"Basic","Items":[{"Kind":"Advanced"}]}""", CreateOptions()));
+
+		Assert.Contains($"{nameof(SetOnlyListHolder)}.Items", exception.Message);
+	}
+
+	[TestMethod]
+	public void SetOnlyChildOfNestedHolderIsRefusedOnRead()
+	{
+		// The inner holder is not claimed itself, but its claimed parent materializes it factory-free,
+		// so its set-only child would go unchecked just the same.
+		NotSupportedException exception = Assert.ThrowsExactly<NotSupportedException>(
+			() => JsonSerializer.Deserialize<NestedSetOnlyChildHolder>("""{"Kind":"Basic","Inner":{"Child":{"Kind":"Advanced"}}}""", CreateOptions()));
+
+		Assert.Contains($"{nameof(UnclaimedSetOnlyChildHolder)}.{nameof(UnclaimedSetOnlyChildHolder.Child)}", exception.Message);
+	}
+
+	[TestMethod]
+	public void SetOnlyChildOfUnclaimedHolderIsStillValidated()
+	{
+		// The holder is not claimed, so the child's own converter runs and reports the violation.
+		JsonRequiredConditionallyException exception = Assert.ThrowsExactly<JsonRequiredConditionallyException>(
+			() => JsonSerializer.Deserialize<UnclaimedSetOnlyChildHolder>("""{"Child":{"Kind":"Advanced"}}""", CreateOptions()));
+
+		Assert.AreSequenceEqual(new List<string> { "Tuning" }, [.. exception.MissingProperties], Microsoft.VisualStudio.TestTools.UnitTesting.SequenceOrder.InAnyOrder);
+	}
+
+	[TestMethod]
+	public void SetOnlyMemberReachingNoRuleStaysSupported()
+	{
+		SetOnlyPlainMemberHolder? holder = JsonSerializer.Deserialize<SetOnlyPlainMemberHolder>(
+			"""{"Kind":"Basic","Note":"n"}""", CreateOptions());
+
+		Assert.IsNotNull(holder);
+		Assert.AreEqual("n", holder.Stored);
+	}
+
+	[TestMethod]
+	public void SetOnlyChildOfClaimedHolderStillSerializes()
+	{
+		// A set-only property is never written, so the refusal is confined to reading.
+		string json = JsonSerializer.Serialize(new SetOnlyChildHolder { Kind = Kind.Basic }, CreateOptions());
+
+		Assert.Contains("Basic", json);
+	}
 }
